@@ -9,13 +9,6 @@ export type UpcomingMeeting = {
   start_time: string | null;
 };
 
-export type UnrecordedVoteMeeting = {
-  id: number;
-  meeting_type: "plenary" | "committee";
-  committee_name: string | null;
-  date: string;
-};
-
 export type ReservedItem = {
   id: number;
   label: string;
@@ -39,11 +32,10 @@ const reservedItemKindLabel = (item: ReservedItem) => (item.kind === "agenda_ite
 
 export const DashboardPage: FC<{
   upcomingMeetings: UpcomingMeeting[];
-  unrecordedVoteMeetings: UnrecordedVoteMeeting[];
   reservedItems: ReservedItem[];
   usedBytes: number;
   quotaBytes: number;
-}> = ({ upcomingMeetings, unrecordedVoteMeetings, reservedItems, usedBytes, quotaBytes }) => {
+}> = ({ upcomingMeetings, reservedItems, usedBytes, quotaBytes }) => {
   const usedRatio = quotaBytes > 0 ? usedBytes / quotaBytes : 0;
   return (
     <>
@@ -56,21 +48,6 @@ export const DashboardPage: FC<{
             {upcomingMeetings.map((m) => (
               <li>
                 {m.date} {meetingStart(m)} {meetingLabel(m)} <a href={`/admin/meetings/${m.id}/edit`}>編集</a>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      <section>
-        <h2>賛否が未記録の終了済み会議</h2>
-        {unrecordedVoteMeetings.length === 0 ? (
-          <p>未記録の会議はありません。</p>
-        ) : (
-          <ul class="list-plain">
-            {unrecordedVoteMeetings.map((m) => (
-              <li>
-                {m.date} {meetingLabel(m)} <a href={`/admin/votes/${m.id}`}>賛否を記録する</a>
               </li>
             ))}
           </ul>
