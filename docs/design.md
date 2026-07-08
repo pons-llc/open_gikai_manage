@@ -1,7 +1,7 @@
 # 議会文書管理システム 設計書
 
-- 版: 1.10
-- 作成日: 2026-07-07（1.1: 同日 — コスト管理・会派所属・セキュリティ監査・お知らせテーブルを追加 / 1.2: 同日 — キャッシュ方式をゾーンレベル Cache Everything に変更、Bot Fight Mode を追加、R2 配信方式の判断を明記 / 1.3: 同日 — 議題に予約公開機能を追加 / 1.4: 同日 — 日程と議題を直接紐づける `meeting_agenda_items` を追加 / 1.5: 同日 — 認証を better-auth から D1 + Web Crypto の自前実装に変更 / 1.6: 同日 — 議員ごとの賛否記録 `agenda_item_votes` を追加 / 1.7: 同日 — フェーズ6のセキュリティ監査で発覚した資料ダウンロードの公開状態バイパスを修正、§12未決事項3を解決 / 1.8: 同日 — 管理操作ログ(console.log構造化JSON)を全管理ルートに実装、公開議員一覧に「期」絞り込みを追加、デモデータ投入スクリプトを追加 / 1.9: 同日 — 議題詳細の賛否結果は賛否が記録された会議のみ表示するよう変更、日程一覧の定例会絞り込みを削除（月別カレンダーのみ） / 1.10: 同日 — 公開議題一覧にキーワード検索（`?q=`）を追加、LIKE パターンのエスケープ方針を明記）
+- 版: 1.11
+- 作成日: 2026-07-07（1.1: 同日 — コスト管理・会派所属・セキュリティ監査・お知らせテーブルを追加 / 1.2: 同日 — キャッシュ方式をゾーンレベル Cache Everything に変更、Bot Fight Mode を追加、R2 配信方式の判断を明記 / 1.3: 同日 — 議題に予約公開機能を追加 / 1.4: 同日 — 日程と議題を直接紐づける `meeting_agenda_items` を追加 / 1.5: 同日 — 認証を better-auth から D1 + Web Crypto の自前実装に変更 / 1.6: 同日 — 議員ごとの賛否記録 `agenda_item_votes` を追加 / 1.7: 同日 — フェーズ6のセキュリティ監査で発覚した資料ダウンロードの公開状態バイパスを修正、§12未決事項3を解決 / 1.8: 同日 — 管理操作ログ(console.log構造化JSON)を全管理ルートに実装、公開議員一覧に「期」絞り込みを追加、デモデータ投入スクリプトを追加 / 1.9: 同日 — 議題詳細の賛否結果は賛否が記録された会議のみ表示するよう変更、日程一覧の定例会絞り込みを削除（月別カレンダーのみ） / 1.10: 同日 — 公開議題一覧にキーワード検索（`?q=`）を追加、LIKE パターンのエスケープ方針を明記 / 1.11: 2026-07-08 — `docs/admin-ux-improvement-plan.md` を実装。管理画面にフラッシュメッセージ・「登録して続けて入力」・グループ化ナビを追加(P1)、議題/日程/資料一覧に絞り込みを追加(P1-4)、議員・委員会・定例会の詳細ハブページを追加し所属画面をハブに吸収(P2)、日程フォームの議題・資料チェックリストに絞り込み・表示順自動採番・その場アップロードを追加(P3)、議題クイック作成 API `POST /api/admin/agenda-items` を追加(P3-4)、ダッシュボードを「今日やること」型に刷新(P4)。データテーブルの変更なし）
 - 元資料: [idea.md](../idea.md)
 
 ---
@@ -442,16 +442,22 @@ export const requireSameOrigin: MiddlewareHandler<AppEnv> = async (c, next) => {
 | `GET /admin/login` | ログイン画面（唯一の未認証管理ページ） |
 | `POST /admin/login` | ログイン処理（email + password を検証、セッション Cookie を発行して `/admin` へリダイレクト。失敗時はログイン画面を 401 で再表示） |
 | `POST /admin/logout` | ログアウト（`admin_sessions` の行を削除し Cookie を失効、`/admin/login` へリダイレクト） |
-| `GET /admin` | ダッシュボード（直近日程・資料数） |
-| `GET /admin/{committees,sessions,agenda-types,members,memberships,factions,faction-memberships}` | 各マスタの一覧 + 登録/編集フォーム |
-| `GET /admin/agenda-items` | 議題一覧（予約中バッジ付き）+ 登録/編集フォーム（`published_at` は `<input type="datetime-local">`、未指定なら現在時刻 = 即時公開。§3.4） |
+| `GET /admin` | ダッシュボード。「今日やること」型(1.11変更): 直近の日程 / 賛否が未記録の終了済み会議 / 予約中の議題・お知らせ / ストレージ使用量バー。マスタ件数の一覧表はナビと重複するため廃止した |
+| `GET /admin/{committees,sessions,agenda-types,members,factions}` | 各マスタの一覧 + 登録/編集フォーム。うち議員・委員会・定例会は一覧の「詳細」リンクから §5.2 のハブページに遷移する(1.11、下記参照) |
+| `GET /admin/{memberships,faction-memberships}` | 委員会所属・会派所属の横断一覧(閲覧+編集)。1.11 でナビからは外したが URL は維持し、ハブページから「横断一覧を見る」リンクで到達できる |
+| `GET /admin/members/:id` | 議員詳細ハブ(1.11追加)。基本情報フォーム + 会派所属・委員会所属の履歴 + その場追加フォーム + 「終了する」1クリック操作を1画面に同居させる(admin-ux-improvement-plan.md P2-1)。旧 `GET /admin/members/:id/edit` は残存するが、一覧の「詳細」リンク先はここに変更した |
+| `POST /admin/members/:id/faction-memberships` `POST /admin/members/:id/faction-memberships/:mid/end` `POST /admin/members/:id/committee-memberships` `POST /admin/members/:id/committee-memberships/:mid/end` | 議員ハブ内の所属追加・終了。検証・INSERT ロジックは `src/lib/memberships.ts` に抽出し、`/admin/memberships` `/admin/faction-memberships` の既存ハンドラと共用する |
+| `GET /admin/committees/:id` | 委員会詳細ハブ(1.11追加)。基本情報フォーム + 現在の委員構成(役職順)+ 過去の委員(折りたたみ)+ その場追加フォーム(P2-2) |
+| `POST /admin/committees/:id/committee-memberships` `POST /admin/committees/:id/committee-memberships/:mid/end` | 委員会ハブ内の委員追加・任期終了(議員ハブと同じ lib 関数を共用) |
+| `GET /admin/sessions/:id` | 定例会詳細ハブ(1.11追加)。会期情報フォーム + この定例会に紐づく日程の一覧 + 「この定例会に日程を追加」ボタン(`/admin/meetings/new?regular_session_id=`、P2-3) |
+| `GET /admin/agenda-items` | 議題一覧(予約中バッジ付き、`?fiscal_year=&category=` で絞り込み、1.11追加)+ 登録/編集フォーム（`published_at` は `<input type="datetime-local">`、未指定なら現在時刻 = 即時公開。§3.4）。登録フォームには「登録して続けて入力」ボタンがあり、成功時に年度・種類を引き継いで同フォームへ戻る(1.11、絞り込みと同じクエリキーを共用) |
 | `GET /admin/announcements` | お知らせ一覧（予約中バッジ付き）+ 登録/編集フォーム（`published_at` は `<input type="datetime-local">`、未指定なら現在時刻 = 即時公開） |
-| `GET /admin/meetings` `GET /admin/meetings/new` `GET /admin/meetings/:id/edit` `POST /admin/meetings/:id/delete` | 日程管理。定例会・議題・資料の紐付け UI |
-| `GET /admin/documents` `POST /admin/documents/:id/delete` | 資料一覧 + アップロードフォーム。削除は他マスタと同じ SSR フォーム POST（§5.3 補足） |
+| `GET /admin/meetings` `GET /admin/meetings/new` `GET /admin/meetings/:id/edit` `POST /admin/meetings/:id/delete` | 日程管理。定例会・議題・資料の紐付け UI。一覧は `?month=&regular_session_id=` で絞り込み可能(1.11追加)。議題・資料チェックリストはインクリメンタル絞り込み(JS)・表示順自動採番(JS)・資料のその場アップロード・議題のクイック作成に対応(1.11、§6.3・§5.3参照) |
+| `GET /admin/documents` `POST /admin/documents/:id/delete` | 資料一覧（`?q=&unlinked=on` でファイル名部分一致・議題未紐付けのみ絞り込み、1.11追加）+ アップロードフォーム。削除は他マスタと同じ SSR フォーム POST（§5.3 補足） |
 | `GET /admin/votes` | 賛否記録対象の会議一覧（議題が紐づく会議ごとに議題数を表示、1.6追加） |
 | `GET /admin/votes/:meetingId` `POST /admin/votes/:meetingId` | 賛否記録(一括入力)。縦軸=その会議の議題、横軸=議員のマス目(スプレッドシート形式)で、セルごとに賛成/反対/棄権/欠席/未記録を選択しまとめて送信する（1.6追加） |
 
-フォーム送信は同一パスへの `POST`（`_method=delete` 等は使わず、削除は専用 `POST /admin/xxx/:id/delete`）。成功時は PRG パターンでリダイレクト。
+フォーム送信は同一パスへの `POST`（`_method=delete` 等は使わず、削除は専用 `POST /admin/xxx/:id/delete`）。成功時は PRG パターンでリダイレクトし、リダイレクト先 URL に `?flash=created|updated|deleted` を付与して保存/削除の成功をバナー表示する(1.11追加、`src/lib/flash.ts`。値は固定の列挙のみ許可し、`/admin/*` は `private, no-store` のためキャッシュ汚染の懸念はない)。
 
 ### 5.3 管理 API（JSON・要認証）
 
@@ -459,10 +465,11 @@ export const requireSameOrigin: MiddlewareHandler<AppEnv> = async (c, next) => {
 
 | メソッド/パス | 内容 |
 |------|------|
-| `POST /api/admin/documents` | `multipart/form-data` でファイル受領 → R2 `put` → `documents` に INSERT。`Accept: application/json` のときはメタデータ JSON を返し、それ以外（JS 無効時の通常フォーム送信）は `/admin/documents` へ 302 リダイレクトする二重対応 |
+| `POST /api/admin/documents` | `multipart/form-data` でファイル受領 → R2 `put` → `documents` に INSERT。`Accept: application/json` のときはメタデータ JSON を返し、それ以外（JS 無効時の通常フォーム送信）は `/admin/documents` へ 302 リダイレクトする二重対応。1.11 で日程フォームのその場アップロード UI から fetch されるようになった |
 | `GET /api/admin/meetings?date=&exclude=` | 指定日の他会議一覧（日程編集画面で開始方法「前の会議終了後」を選んだ際に fetch で取得。§6.3） |
+| `POST /api/admin/agenda-items` | 1.11追加。JSON body(`title`/`fiscal_year`/`number`/`category`/`agenda_type_id`)を既存の `agendaItemSchema` でそのまま検証し、`src/lib/agendaItems.ts` の `createAgendaItem` で INSERT + `logAdminMutation` を SSR ルート(`POST /admin/agenda-items`)と共用する。日程フォームの議題セクションから「クイック作成」される議題は常に即時公開固定(予約公開したい場合は `/admin/agenda-items` の通常フォームを使う)。下記の「実装していない」検索 API とは別物 — こちらは新規作成専用の API |
 
-資料削除は JSON API ではなく `POST /admin/documents/:id/delete`（他マスタと同じ SSR フォーム POST パターン、§5.2）で実装している。`GET /api/admin/documents?q=` と `GET /api/admin/agenda-items?q=&year=`（資料検索・議題検索の部分一致 API）は実装していない — 日程編集画面の資料/議題選択は検索付きセレクトではなく、全件を表示するチェックボックスリスト + 表示順の手入力に変更した（§6.3 参照。件数が数百件規模になった場合は改めて検索 API の追加を検討する）。
+資料削除は JSON API ではなく `POST /admin/documents/:id/delete`（他マスタと同じ SSR フォーム POST パターン、§5.2）で実装している。`GET /api/admin/documents?q=` と `GET /api/admin/agenda-items?q=&year=`（資料検索・議題検索の部分一致 API)は実装していない — 日程編集画面の資料/議題選択は検索付きセレクトではなく、全件を表示するチェックボックスリスト + 表示順の手入力(1.11でインクリメンタル絞り込み・自動採番を JS で追加、§6.3 参照)のままとした。一覧の絞り込みは 1.11 で SSR の GET クエリ(`?q=` 等、JS 不要)として `/admin/agenda-items` `/admin/meetings` `/admin/documents` に追加済み(§5.2)。件数が数百件規模になった場合は改めてこの API 化を検討する。
 
 ログイン/ログアウトは JSON API ではなく `/admin/login` `/admin/logout` への通常の SSR フォーム POST として実装する（§5.2）。better-auth を撤去したため `/api/auth/*` は存在しない。
 
@@ -553,14 +560,23 @@ export const requireSameOrigin: MiddlewareHandler<AppEnv> = async (c, next) => {
 | 開催日 | `<input type="date">` | |
 | 開始 | ラジオ: 時刻指定 / 前の会議終了後 | 「終了後」選択時は同日の他会議セレクトに切替（JS。同日会議は `GET /api/admin/meetings?date=&exclude=` で fetch 取得） |
 | 日程 | `<textarea>` | |
-| 議題 | 全件チェックボックス + 表示順の数値入力 | 検索は無し（フェーズ5実装時に方針変更、§5.3 補足）。予約中の議題も選択可能（選択した時点では公開されず、`published_at` 到来まで会議詳細にも出ない） |
-| 会議資料 | 全件チェックボックス + 表示順の数値入力 | 検索・その場アップロードは無し。資料は先に `/admin/documents` でアップロードしておく |
+| 議題 | 年度で `<details>` グルーピングしたチェックボックス + 表示順の数値入力 | 1.11: 上部のテキスト入力でインクリメンタル絞り込み(JS、client-side、fetch不要。チェック済み行は絞り込みに関係なく常に表示)。当年度(最新の年度グループ)のみ初期展開。チェックを入れた時点で表示順が0/空なら「現在のチェック済み最大値+1」を自動セット、外したら0に戻す(JS、手入力での上書きも可能)。予約中の議題も選択可能（選択した時点では公開されず、`published_at` 到来まで会議詳細にも出ない）。JS無効時は絞り込み・自動採番なしで全件表示のまま(方針§2準拠) |
+| 会議資料 | 全件チェックボックス + 表示順の数値入力 | 1.11: 議題と同じインクリメンタル絞り込み・表示順自動採番に対応。さらに「ここでアップロード」インライン UI(JS)を追加 — 既存 `POST /api/admin/documents`(Accept: application/json)を fetch で呼び、日程フォーム自体は未送信のままチェックリストに行を動的追加してチェック済み+表示順自動採番にする。JS無効時はインライン UI を隠し、`/admin/documents` へのリンク文言を表示する |
+| 議題(クイック作成) | 最小フィールド(議題名/年度/番号/種類、種類=議案のときのみ議案種別▾)のインライン作成 UI(JS) | 1.11追加。`POST /api/admin/agenda-items`(§5.3)を fetch し、成功したら議題チェックリストへ動的追加(その場アップロードと同型)。`published_at` は常に即時公開固定(予約公開したい場合は `/admin/agenda-items` の通常フォームを使う。UI を単純に保つため) |
 
-**資料管理 `/admin/documents`**: 一覧（ファイル名/サイズ/議題/登録日）、アップロードフォーム（ファイル + 議題セレクト任意）、削除（`POST /admin/documents/:id/delete`）。※当初案にあった「使用中(会議に紐付いている場合)の確認ダイアログに使用先を表示」は実装していない（汎用の削除確認ダイアログのみ）。
+**資料管理 `/admin/documents`**: 一覧（ファイル名/サイズ/議題/登録日、`?q=&unlinked=on` でファイル名部分一致・議題未紐付けのみ絞り込み、1.11追加、GET フォームで JS 不要）、アップロードフォーム（ファイル + 議題セレクト任意）、削除（`POST /admin/documents/:id/delete`）。※当初案にあった「使用中(会議に紐付いている場合)の確認ダイアログに使用先を表示」は実装していない（汎用の削除確認ダイアログのみ）。
 
-**議題登録**: 種類ラジオの選択に応じて「議案種別セレクト」（種類=議案のとき）と「委員会セレクト」（種類=委員会のとき）を出し分け（JS 無効時は両方表示し、サーバ側バリデーションで担保）。予定公開日時（`published_at`、`<input type="datetime-local">`、未指定なら現在時刻＝即時公開）を持ち、一覧では未来日時の行に「予約中」バッジを付ける（announcements と同一パターン、§3.4）。
+**議題管理 `/admin/agenda-items`**: 種類ラジオの選択に応じて「議案種別セレクト」（種類=議案のとき）と「委員会セレクト」（種類=委員会のとき）を出し分け（JS 無効時は両方表示し、サーバ側バリデーションで担保）。予定公開日時（`published_at`、`<input type="datetime-local">`、未指定なら現在時刻＝即時公開）を持ち、一覧では未来日時の行に「予約中」バッジを付ける（announcements と同一パターン、§3.4）。1.11: 一覧に `?fiscal_year=&category=` の絞り込み(GET フォーム)を追加し、登録フォームの「登録して続けて入力」ボタンと同じクエリキーを共用する(絞り込んだ文脈のまま同年度・同種類の議題を連続登録できる)。
 
-**賛否記録 `/admin/votes`**（1.6 追加）: 議題が紐づく会議の一覧を表示する。`/admin/votes/:meetingId` は縦軸にその会議の議題（`meeting_agenda_items`、表示順）、横軸に議員（議席番号順）を並べたグリッドで、セルごとにセレクトで賛成/反対/棄権/欠席/未記録を選び、ページ全体を一度に送信する（エクセルのような一括入力 UI）。各議題の行には「全員賛成」等のクイック入力ボタンを備える（JS、無効時はセルを1つずつ選択すればよい）。「未記録」を選んだセルは当該会議×議題×議員の賛否記録を削除する（既存の記録を明示的に取り消せるようにするため）。
+**議員・委員会・定例会の詳細ハブページ**(1.11追加、admin-ux-improvement-plan.md P2): 「1テーブル=1画面」だった所属系マスタを、業務の主役(議員・委員会・定例会)を起点にしたハブへ再編した。「委員会所属」「会派所属」の単独ナビ項目は廃止し(URLは維持)、ハブ内のその場追加フォーム・「終了する」1クリック操作に統合している。
+
+- **議員詳細ハブ `/admin/members/:id`**: 基本情報フォーム + 会派所属の履歴(その場追加フォーム、現所属のみ「終了する」ボタンで `term_end` に本日を1クリックセット)+ 委員会所属の履歴(同様)。「編集」「削除」は既存の横断一覧(`/admin/faction-memberships` `/admin/memberships`)へのリンクを再利用し、ロジックを二重実装しない。
+- **委員会詳細ハブ `/admin/committees/:id`**: 基本情報フォーム + 現在の委員構成(役職順: 委員長→副委員長→委員→議席番号順)+ 過去の委員(`<details>` で折りたたみ)+ その場追加フォーム。改選時の一括入替ウィザードはスコープ外(頻度が低いため、実運用の声を見て判断)。
+- **定例会詳細ハブ `/admin/sessions/:id`**: 会期情報フォーム + この定例会に紐づく日程の一覧(日付順)+ 「この定例会に日程を追加」ボタン(`/admin/meetings/new?regular_session_id=` で定例会をプリセットし、選び直す手間と選び忘れをなくす)。
+
+**ダッシュボード `/admin`**(1.11刷新): 「マスタ名+件数」の一覧表(ナビと重複するため廃止)から、業務起点の4ブロックへ置き換えた — 直近の日程(既存踏襲)/ 賛否が未記録の終了済み会議(開催日が過去かつ紐づく議題に1件も `agenda_item_votes` がない会議、賛否記録画面への直リンク付き)/ 予約中の議題・お知らせ(`published_at` が未来の行、編集画面への直リンク付き)/ ストレージ使用量バー(資料管理画面の表示を再利用)。
+
+**賛否記録 `/admin/votes`**（1.6 追加）: 議題が紐づく会議の一覧を表示する。`/admin/votes/:meetingId` は縦軸にその会議の議題（`meeting_agenda_items`、表示順）、横軸に議員（議席番号順）を並べたグリッドで、セルごとにセレクトで賛成/反対/棄権/欠席/未記録を選び、ページ全体を一度に送信する（エクセルのような一括入力 UI）。各議題の行には「全員賛成」等のクイック入力ボタンを備える（JS、無効時はセルを1つずつ選択すればよい）。「未記録」を選んだセルは当該会議×議題×議員の賛否記録を削除する（既存の記録を明示的に取り消せるようにするため）。1.11 のダッシュボード改修はスコープ外(手を入れていない、既に完成度が高いため)。
 
 ---
 

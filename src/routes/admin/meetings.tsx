@@ -72,6 +72,12 @@ const listDocumentOptions = (DB: D1Database) =>
     .all<DocumentOption>()
     .then((r) => r.results);
 
+/** P3-4: 議題クイック作成(種類=議案のときのみ議案種別▾を出す)のための選択肢。 */
+const listAgendaTypeOptions = (DB: D1Database) =>
+  DB.prepare(`SELECT id, name FROM agenda_types ORDER BY display_order ASC, id ASC`)
+    .all<SelectOption>()
+    .then((r) => r.results);
+
 const listPreviousMeetingOptions = async (
   DB: D1Database,
   date: string,
@@ -183,12 +189,13 @@ const render = async (
   editingId: number | null,
   status: 200 | 400 = 200
 ) => {
-  const [committees, regularSessions, agendaItems, documents, previousMeetingOptions] = await Promise.all([
+  const [committees, regularSessions, agendaItems, documents, previousMeetingOptions, agendaTypes] = await Promise.all([
     listCommitteeOptions(c.env.DB),
     listRegularSessionOptions(c.env.DB),
     listAgendaItemOptions(c.env.DB),
     listDocumentOptions(c.env.DB),
     listPreviousMeetingOptions(c.env.DB, form.date, editingId),
+    listAgendaTypeOptions(c.env.DB),
   ]);
   return c.html(
     <Layout title={editingId ? "日程編集" : "日程登録"} variant="admin" adminEmail={c.get("adminEmail")}>
@@ -201,6 +208,7 @@ const render = async (
         previousMeetingOptions={previousMeetingOptions}
         agendaItems={agendaItems}
         documents={documents}
+        agendaTypes={agendaTypes}
       />
     </Layout>,
     status

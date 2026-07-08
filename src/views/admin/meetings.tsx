@@ -1,5 +1,5 @@
 import type { FC } from "hono/jsx";
-import { agendaItemCategoryLabels } from "../../validators/agendaItems";
+import { agendaItemCategories, agendaItemCategoryLabels } from "../../validators/agendaItems";
 import { meetingTypeLabels, meetingTypes, startTypeLabels, startTypes } from "../../validators/meetings";
 import type { SelectOption } from "./committeeMemberships";
 import { AdminSection, DeleteForm, ErrorList } from "./shared";
@@ -148,7 +148,18 @@ export const MeetingFormPage: FC<{
   previousMeetingOptions: PreviousMeetingOption[];
   agendaItems: AgendaItemOption[];
   documents: DocumentOption[];
-}> = ({ form, errors, editingId, committees, regularSessions, previousMeetingOptions, agendaItems, documents }) => (
+  agendaTypes: SelectOption[];
+}> = ({
+  form,
+  errors,
+  editingId,
+  committees,
+  regularSessions,
+  previousMeetingOptions,
+  agendaItems,
+  documents,
+  agendaTypes,
+}) => (
   <AdminSection title={editingId ? "日程を編集" : "日程を登録"}>
     <ErrorList errors={errors} />
     <form
@@ -227,46 +238,94 @@ export const MeetingFormPage: FC<{
 
       <div class="field">
         <span class="field-legend">この会議の議題</span>
-        {agendaItems.length === 0 ? (
-          <p class="hint">登録された議題がありません。</p>
-        ) : (
-          <>
-            <div class="field-filter">
-              <input type="text" data-filter-input="agenda" placeholder="議題名で絞り込み" />
-            </div>
-            <div class="checkbox-list" data-filter-list="agenda">
-              {groupByFiscalYear(agendaItems).map(([year, items], groupIndex) => (
-                <details open={groupIndex === 0}>
-                  <summary>{year}年度</summary>
-                  {items.map((a) => (
-                    <div class="checkbox-list__row" data-filter-row>
-                      <label class="checkbox-list__checkbox">
-                        <input
-                          type="checkbox"
-                          name="agenda_item_ids"
-                          value={a.id}
-                          checked={form.agenda_item_ids.includes(a.id)}
-                          data-order-checkbox
-                          data-order-target={`agenda_item_order_${a.id}`}
-                        />
-                        {a.fiscal_year}年度 {agendaItemCategoryLabels[a.category as keyof typeof agendaItemCategoryLabels] ?? a.category} {a.title}
-                      </label>
-                      <input
-                        type="number"
-                        class="checkbox-list__order"
-                        id={`agenda_item_order_${a.id}`}
-                        name={`agenda_item_order_${a.id}`}
-                        value={form.agenda_item_orders[a.id] ?? "0"}
-                        aria-label={`${a.title} の表示順`}
-                        data-order-input
-                      />
-                    </div>
-                  ))}
-                </details>
-              ))}
-            </div>
-          </>
+        {agendaItems.length > 0 && (
+          <div class="field-filter">
+            <input type="text" data-filter-input="agenda" placeholder="議題名で絞り込み" />
+          </div>
         )}
+        <div class="checkbox-list" data-filter-list="agenda">
+          {agendaItems.length === 0 ? (
+            <p class="hint" data-agenda-empty-hint>
+              登録された議題がありません。
+            </p>
+          ) : (
+            groupByFiscalYear(agendaItems).map(([year, items], groupIndex) => (
+              <details open={groupIndex === 0}>
+                <summary>{year}年度</summary>
+                {items.map((a) => (
+                  <div class="checkbox-list__row" data-filter-row>
+                    <label class="checkbox-list__checkbox">
+                      <input
+                        type="checkbox"
+                        name="agenda_item_ids"
+                        value={a.id}
+                        checked={form.agenda_item_ids.includes(a.id)}
+                        data-order-checkbox
+                        data-order-target={`agenda_item_order_${a.id}`}
+                      />
+                      {a.fiscal_year}年度 {agendaItemCategoryLabels[a.category as keyof typeof agendaItemCategoryLabels] ?? a.category} {a.title}
+                    </label>
+                    <input
+                      type="number"
+                      class="checkbox-list__order"
+                      id={`agenda_item_order_${a.id}`}
+                      name={`agenda_item_order_${a.id}`}
+                      value={form.agenda_item_orders[a.id] ?? "0"}
+                      aria-label={`${a.title} の表示順`}
+                      data-order-input
+                    />
+                  </div>
+                ))}
+              </details>
+            ))
+          )}
+        </div>
+        <noscript>
+          <p class="hint">
+            <a href="/admin/agenda-items">議題管理</a>から議題を登録できます。
+          </p>
+        </noscript>
+        <div class="inline-upload" data-inline-agenda-create hidden>
+          <p class="hint">ここで作成すると、フォームを送信せずにチェックリストへ追加できます(即時公開)。</p>
+          <div class="field">
+            <label for="inline_agenda_title">議題名</label>
+            <input type="text" id="inline_agenda_title" data-inline-agenda-title />
+          </div>
+          <div class="field">
+            <label for="inline_agenda_fiscal_year">年度</label>
+            <input
+              type="number"
+              id="inline_agenda_fiscal_year"
+              data-inline-agenda-fiscal-year
+              value={new Date().getFullYear()}
+            />
+          </div>
+          <div class="field">
+            <label for="inline_agenda_number">番号</label>
+            <input type="number" id="inline_agenda_number" data-inline-agenda-number />
+          </div>
+          <div class="field">
+            <label for="inline_agenda_category">種類</label>
+            <select id="inline_agenda_category" data-inline-agenda-category>
+              {agendaItemCategories.map((cat) => (
+                <option value={cat}>{agendaItemCategoryLabels[cat]}</option>
+              ))}
+            </select>
+          </div>
+          <div class="field" data-inline-agenda-type-field>
+            <label for="inline_agenda_type">議案種別</label>
+            <select id="inline_agenda_type" data-inline-agenda-type>
+              <option value="">選択してください</option>
+              {agendaTypes.map((t) => (
+                <option value={t.id}>{t.name}</option>
+              ))}
+            </select>
+          </div>
+          <button type="button" class="button button--secondary" data-inline-agenda-submit>
+            この議題を作成
+          </button>
+          <p class="hint" data-inline-agenda-error style="display: none; color: var(--color-error-red-900);"></p>
+        </div>
       </div>
 
       <div class="field">

@@ -3,6 +3,7 @@ import type { AppEnv } from "../../env";
 import { logAdminMutation } from "../../lib/auditLog";
 import { formFromQuery, str, type ParsedForm } from "../../lib/forms";
 import { getFlash, withFlash, type FlashKind } from "../../lib/flash";
+import { createAgendaItem } from "../../lib/agendaItems";
 import { agendaItemSchema } from "../../validators/agendaItems";
 import { datetimeLocalToDb, dbToDatetimeLocal } from "../../validators/announcements";
 import { Layout } from "../../views/layout";
@@ -155,34 +156,15 @@ agendaItemsRoute.get("/:id/edit", async (c) => {
 agendaItemsRoute.post("/", async (c) => {
   const rawForm = await c.req.parseBody();
   const form = readForm(rawForm);
-  const parsed = agendaItemSchema.safeParse(toSchemaInput(form));
-  if (!parsed.success) {
-    return render(c, form, parsed.error.issues.map((i) => i.message), null, 400);
-  }
-  try {
-    const result = await c.env.DB.prepare(
-      `INSERT INTO agenda_items (title, fiscal_year, number, category, agenda_type_id, committee_id, published_at)
-       VALUES (?, ?, ?, ?, ?, ?, COALESCE(NULLIF(?, ''), datetime('now')))`
-    )
-      .bind(
-        parsed.data.title,
-        parsed.data.fiscal_year,
-        parsed.data.number,
-        parsed.data.category,
-        parsed.data.agenda_type_id,
-        parsed.data.committee_id,
-        parsed.data.published_at
-      )
-      .run();
-    logAdminMutation(c, "agenda_items", result.meta.last_row_id ?? null, "create");
-  } catch {
-    return render(c, form, ["この年度・種類の番号は既に使用されています"], null, 400);
+  const result = await createAgendaItem(c, toSchemaInput(form));
+  if (!result.ok) {
+    return render(c, form, result.errors, null, 400);
   }
   if (str(rawForm, "save_mode") === "continue") {
     return c.redirect(
       withFlash("/admin/agenda-items", "created", {
-        fiscal_year: String(parsed.data.fiscal_year),
-        category: parsed.data.category,
+        fiscal_year: String(result.fiscal_year),
+        category: result.category,
       })
     );
   }

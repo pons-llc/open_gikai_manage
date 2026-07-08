@@ -228,6 +228,111 @@ document.querySelectorAll("[data-inline-upload]").forEach((panel) => {
   });
 });
 
+// P3-4: 議題のクイック作成。既存 POST /api/admin/agenda-items(JSON, requireAuth 済み)を再利用し、
+// 成功したら議題チェックリストへ動的追加してチェック済み+表示順自動採番にする(P3-3 と同型)。
+// クイック作成は即時公開固定(予約公開したい場合は議題管理画面を使う)。
+document.querySelectorAll("[data-inline-agenda-create]").forEach((panel) => {
+  panel.hidden = false;
+  const titleInput = panel.querySelector("[data-inline-agenda-title]");
+  const yearInput = panel.querySelector("[data-inline-agenda-fiscal-year]");
+  const numberInput = panel.querySelector("[data-inline-agenda-number]");
+  const categorySelect = panel.querySelector("[data-inline-agenda-category]");
+  const typeSelect = panel.querySelector("[data-inline-agenda-type]");
+  const typeField = panel.querySelector("[data-inline-agenda-type-field]");
+  const submitButton = panel.querySelector("[data-inline-agenda-submit]");
+  const errorEl = panel.querySelector("[data-inline-agenda-error]");
+  const list = document.querySelector('[data-filter-list="agenda"]');
+  if (!titleInput || !yearInput || !numberInput || !categorySelect || !submitButton || !errorEl || !list) return;
+
+  const syncTypeField = () => {
+    if (typeField) typeField.style.display = categorySelect.value === "bill" ? "" : "none";
+  };
+  categorySelect.addEventListener("change", syncTypeField);
+  syncTypeField();
+
+  const showError = (message) => {
+    errorEl.textContent = message;
+    errorEl.style.display = "";
+  };
+
+  submitButton.addEventListener("click", async () => {
+    errorEl.style.display = "none";
+    const title = titleInput.value.trim();
+    if (!title) {
+      showError("議題名を入力してください");
+      return;
+    }
+    const payload = {
+      title,
+      fiscal_year: Number(yearInput.value) || 0,
+      number: Number(numberInput.value) || 0,
+      category: categorySelect.value,
+      agenda_type_id: categorySelect.value === "bill" && typeSelect ? typeSelect.value : null,
+    };
+
+    submitButton.disabled = true;
+    try {
+      const res = await fetch("/api/admin/agenda-items", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showError((data && data.error && data.error.message) || "作成に失敗しました");
+        return;
+      }
+
+      const emptyHint = list.querySelector("[data-agenda-empty-hint]");
+      if (emptyHint) emptyHint.remove();
+
+      const details = document.createElement("details");
+      details.open = true;
+      const summary = document.createElement("summary");
+      summary.textContent = `${data.fiscal_year}年度`;
+      details.appendChild(summary);
+
+      const row = document.createElement("div");
+      row.className = "checkbox-list__row";
+      row.setAttribute("data-filter-row", "");
+
+      const label = document.createElement("label");
+      label.className = "checkbox-list__checkbox";
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.name = "agenda_item_ids";
+      checkbox.value = String(data.id);
+      checkbox.checked = true;
+      checkbox.setAttribute("data-order-checkbox", "");
+      checkbox.setAttribute("data-order-target", `agenda_item_order_${data.id}`);
+      label.appendChild(checkbox);
+      label.appendChild(document.createTextNode(" " + data.title));
+
+      const orderInput = document.createElement("input");
+      orderInput.type = "number";
+      orderInput.className = "checkbox-list__order";
+      orderInput.id = `agenda_item_order_${data.id}`;
+      orderInput.name = `agenda_item_order_${data.id}`;
+      orderInput.value = "0";
+      orderInput.setAttribute("data-order-input", "");
+      orderInput.setAttribute("aria-label", `${data.title} の表示順`);
+
+      row.appendChild(label);
+      row.appendChild(orderInput);
+      details.appendChild(row);
+      list.insertBefore(details, list.firstChild);
+      checkbox.dispatchEvent(new Event("change", { bubbles: true }));
+
+      titleInput.value = "";
+      numberInput.value = "";
+    } catch {
+      showError("通信エラーが発生しました");
+    } finally {
+      submitButton.disabled = false;
+    }
+  });
+});
+
 // 賛否記録グリッド: 行(議題)の「全員○○」ボタンで、その行のセレクトを一括変更する(design.md §6.3)。
 // JS無効時はボタンが出ないだけで、セレクトを1つずつ選んで通常送信すれば同じ結果になる。
 document.querySelectorAll("[data-vote-row-fill] [data-vote-fill]").forEach((button) => {
