@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>open_gikai — 地方議会向けオープンソース文書管理システム</title>
+<title>open_gikai — 地方議会に、もっと開かれた情報公開を</title>
 <link rel="stylesheet" href="assets/tokens.css" />
 <link rel="stylesheet" href="assets/demo.css" />
 </head>
@@ -14,8 +14,9 @@
     <span>議会文書管理システム</span>
   </div>
   <ul class="lp-header__links">
-    <li><a href="#features">特徴</a></li>
-    <li><a href="#stack">技術スタック</a></li>
+    <li><a href="#why">私たちの思い</a></li>
+    <li><a href="#for-local-gov">自治体の方へ</a></li>
+    <li><a href="#for-vendors">ベンダーの方へ</a></li>
     <li><a href="#screens">デモ画面</a></li>
     <li><a href="../README.md">README</a></li>
   </ul>
@@ -24,82 +25,93 @@
 <main class="lp-main">
   <section class="lp-hero">
     <div class="lp-hero__badges">
-      <span class="lp-badge">Apache-2.0</span>
-      <span class="lp-badge">Cloudflare Workers</span>
-      <span class="lp-badge">Hono</span>
-      <span class="lp-badge">D1 + R2</span>
-      <span class="lp-badge">DADS v2.12.0</span>
+      <span class="lp-badge">Apache-2.0 / オープンソース</span>
+      <span class="lp-badge">無料で始められます</span>
     </div>
-    <h1>市民に開かれた議会情報を、<br />低コストに運用できる形で。</h1>
+    <h1>地方議会は、いちばん身近な<br />民主主義の現場です。</h1>
     <p class="lp-lead">
-      open_gikai は、地方議会の会議日程・議題・委員会・議員・お知らせ・会議資料を
-      誰でも認証不要で閲覧できるようにする、地方自治体向けのオープンソースシステムです。
-      Cloudflare Workers + D1 + R2 のみで構成し、従量課金の予算スパイクを設計段階から防ぎます。
+      でも多くの議会は、予算をかけられず、使いにくい資料公開のままになっています。
+      open_gikai は、そんな現状を変えるためのオープンソースシステムです。
+      ライセンス費用はかからず、運用コストもできるだけ低く抑えられるように設計しています。
     </p>
     <div class="lp-hero__ctas">
       <a class="button button--primary" href="app/top.html">デモを見る(ダミーデータ)</a>
-      <a class="button button--ghost" href="../README.md">セットアップ手順(README)</a>
+      <a class="button button--ghost" href="#for-local-gov">自治体の方へ</a>
+      <a class="button button--ghost" href="#for-vendors">ベンダーの方へ</a>
     </div>
   </section>
 
-  <section class="lp-section" id="features">
-    <h2>特徴</h2>
+  <section class="lp-section" id="why">
+    <h2>情報公開は、住民と議会をつなぐ最初の一歩</h2>
     <p class="lp-section__lead">
-      「閲覧系は完全公開・更新系のみ認証」というシンプルな2層モデルと、
-      Cloudflare の従量課金を前提にした予算スパイク対策を核にしています。
+      いつ、どんな議題が話し合われ、誰がどう賛否を投じたのか。それを住民が知る権利は、
+      財政規模の大きな自治体だけのものではないはずです。私たちは、その一歩をどの自治体でも
+      踏み出せるようにしたいと考え、open_gikai をつくりました。
     </p>
     <div class="lp-grid">
-      <div class="lp-card">
-        <h3>認証不要の公開画面</h3>
-        <p>日程・議題・委員会・議員・お知らせ・資料DLは、市民なら誰でもログインなしで閲覧できます。JS無効でも閲覧系は動作します。</p>
+      <div class="lp-card lp-card--muted">
+        <h3>よくある現状</h3>
+        <p>
+          会議資料のPDFが日付順に並んでいるだけで探しにくい。専用のシステムを持てる予算がなく、
+          担当者の手作業に頼っている。委員会と本会議、それぞれの賛否が住民から見えにくい。
+        </p>
       </div>
-      <div class="lp-card">
-        <h3>「前の会議終了後」チェーン日程</h3>
-        <p>開始時刻が未定の会議も、「前の会議終了後」という形で自然に表現・表示できます。</p>
-      </div>
-      <div class="lp-card">
-        <h3>2段階の賛否記録</h3>
-        <p>委員会採決→本会議採決という2段階の賛否を、議員ごと・会議ごとにグリッド入力し公開できます。</p>
-      </div>
-      <div class="lp-card">
-        <h3>予約公開(cronなし)</h3>
-        <p>お知らせ・議題の公開予約は読み取り時のフィルタ(<code>published_at &lt;= now</code>)で実現し、cronジョブのコストをかけません。</p>
-      </div>
-      <div class="lp-card">
-        <h3>予算スパイク対策を内蔵</h3>
-        <p>公開GETはゾーンレベルで30分(資料は1日)キャッシュ、R2は総容量クォータでコスト上限を設計段階から確保しています。</p>
-      </div>
-      <div class="lp-card">
-        <h3>デジタル庁デザインシステム準拠</h3>
-        <p>DADS v2.12.0 のトークンを採用し、アクセシブルで自治体らしい見た目を最初から実現します。</p>
+      <div class="lp-card lp-card--highlight">
+        <h3>open_gikai が目指す姿</h3>
+        <p>
+          日程・議題・委員会・議員・お知らせ・資料が整理され、誰でもすぐに探せる。
+          ライセンス費用はかからず、Cloudflareの従量課金で小規模自治体でも運用しやすい。
+          オープンソースなので、特定のベンダーに縛られることもありません。
+        </p>
       </div>
     </div>
   </section>
 
-  <section class="lp-section" id="stack">
-    <h2>技術スタック</h2>
-    <p class="lp-section__lead">追加のホスティング費用や外部認証SaaSに依存せず、Cloudflareの枠内で完結します。</p>
-    <table class="lp-stack-table">
-      <thead>
-        <tr><th>レイヤ</th><th>技術</th></tr>
-      </thead>
-      <tbody>
-        <tr><td>実行基盤</td><td>Cloudflare Workers</td></tr>
-        <tr><td>ルーティング / SSR</td><td>Hono + hono/jsx</td></tr>
-        <tr><td>データベース</td><td>Cloudflare D1 (SQLite)</td></tr>
-        <tr><td>オブジェクトストレージ</td><td>Cloudflare R2(会議資料)</td></tr>
-        <tr><td>静的アセット</td><td>Workers Static Assets</td></tr>
-        <tr><td>認証</td><td>自前実装(D1 + Web Crypto。better-auth 等の外部ライブラリ不使用)</td></tr>
-        <tr><td>フロントエンド</td><td>vanilla JS(プログレッシブエンハンスメント)</td></tr>
-        <tr><td>デザイン</td><td>デジタル庁デザインシステム(DADS) v2.12.0</td></tr>
-      </tbody>
-    </table>
+  <section class="lp-section" id="for-local-gov">
+    <h2>自治体の方へ</h2>
+    <div class="lp-grid">
+      <div class="lp-card">
+        <h3>まずは、地域のベンダーに相談してみてください</h3>
+        <p>
+          「情報システムを内製する余裕がない」という自治体こそ、open_gikai を活用してほしいと考えています。
+          地域のITベンダーに「このOSSを使って構築・運用してもらえないか」と声をかけてください。
+          ソフトウェア自体のライセンス費用はかからず、Cloudflareの実費相当のみで運用できます。
+        </p>
+      </div>
+      <div class="lp-card">
+        <h3>身の丈に合った予算で、良い体験を</h3>
+        <p>
+          キャッシュやストレージ容量の上限を最初から組み込み、想定外の高額請求が起きにくい設計にしています。
+          大きな初期投資をせずに、住民にとって探しやすい情報公開を始められます。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section class="lp-section" id="for-vendors">
+    <h2>システムベンダーの方へ</h2>
+    <div class="lp-grid">
+      <div class="lp-card">
+        <h3>このOSSを、自治体への提案の武器にしてください</h3>
+        <p>
+          open_gikai は Apache License 2.0 で公開しており、改変・再配布・商用利用は自由です。
+          自治体向けの提案のベースとして、あるいは受託運用そのもののプロダクトとしてご活用ください。
+        </p>
+      </div>
+      <div class="lp-card">
+        <h3>ゼロから作らなくていい</h3>
+        <p>
+          日程・議題・委員会・議員・賛否記録・資料公開といった、地方議会サイトに必要な機能は一通り揃っています。
+          自治体ごとのカスタマイズや運用サポートに時間を使ってもらえるはずです。
+        </p>
+      </div>
+    </div>
   </section>
 
   <section class="lp-section" id="screens">
     <h2>デモ画面(ダミーデータ)</h2>
     <p class="lp-section__lead">
-      いずれも本番同様の見た目・DADSトークンを使った静的サンプルです。実データではなく、動作もしません。
+      実際に住民が目にする画面のイメージです。ダミーデータの静的サンプルなので、検索やフォームは動作しません。
     </p>
     <div class="lp-screens">
       <a class="lp-screen-card" href="app/top.html">
@@ -137,9 +149,47 @@
     </div>
   </section>
 
+  <section class="lp-section" id="platform">
+    <h2>利用しているプラットフォームについて</h2>
+    <div class="lp-note">
+      <p>
+        open_gikai は Cloudflare Workers / D1 / R2 上で動作します。Cloudflareは世界中に分散したネットワークのため、
+        処理が実行されるリージョンは日本国内とは限りません。
+      </p>
+      <p>
+        本システムが扱うのは、会議日程・議題・委員会構成・議員名簿・お知らせ・会議資料など、
+        そもそも公開を前提とした情報だけです。そのため、リージョンが日本国内に限定されない点は、
+        大きな問題にはならないと考えています。個人情報や機微な情報を扱う用途は想定していません。
+      </p>
+      <p>
+        その分、Cloudflareの従量課金モデルによって、小規模な自治体でも低コストで運用できることを優先しました。
+      </p>
+    </div>
+  </section>
+
+  <section class="lp-section" id="stack">
+    <h2>技術的な詳細(参考)</h2>
+    <p class="lp-section__lead">追加のホスティング費用や外部認証SaaSに依存せず、Cloudflareの枠内で完結します。</p>
+    <table class="lp-stack-table">
+      <thead>
+        <tr><th>レイヤ</th><th>技術</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>実行基盤</td><td>Cloudflare Workers</td></tr>
+        <tr><td>ルーティング / SSR</td><td>Hono + hono/jsx</td></tr>
+        <tr><td>データベース</td><td>Cloudflare D1 (SQLite)</td></tr>
+        <tr><td>オブジェクトストレージ</td><td>Cloudflare R2(会議資料)</td></tr>
+        <tr><td>静的アセット</td><td>Workers Static Assets</td></tr>
+        <tr><td>認証</td><td>自前実装(D1 + Web Crypto。better-auth 等の外部ライブラリ不使用)</td></tr>
+        <tr><td>フロントエンド</td><td>vanilla JS(プログレッシブエンハンスメント)</td></tr>
+        <tr><td>デザイン</td><td>デジタル庁デザインシステム(DADS) v2.12.0</td></tr>
+      </tbody>
+    </table>
+  </section>
+
   <section class="lp-section">
     <div class="lp-cta">
-      <h2>自分の自治体で動かしてみる</h2>
+      <h2>あなたの自治体・提案先で動かしてみる</h2>
       <p>Cloudflareアカウントがあれば、Workers + D1 + R2 のみで数十分でセットアップできます。</p>
       <a class="button button--on-dark" href="../README.md">READMEのセットアップ手順を見る</a>
     </div>
@@ -147,7 +197,7 @@
 </main>
 
 <footer class="lp-footer">
-  <p>open_gikai は Apache License 2.0 で公開されているオープンソースプロジェクトです。</p>
+  <p>open_gikai は Apache License 2.0 で公開されているオープンソースプロジェクトです。誰でも自由に、無償で使い、改変し、届けることができます。</p>
   <p>このページ自体もデモ用の静的サイトであり、実際のアプリは Cloudflare Workers 上で動作します。</p>
 </footer>
 </body>
