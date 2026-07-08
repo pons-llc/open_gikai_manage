@@ -4,7 +4,7 @@ import { logAdminMutation } from "../../lib/auditLog";
 import { formFromQuery, str, type ParsedForm } from "../../lib/forms";
 import { getFlash, withFlash, type FlashKind } from "../../lib/flash";
 import { createAgendaItem } from "../../lib/agendaItems";
-import { agendaItemSchema } from "../../validators/agendaItems";
+import { agendaItemSchema, AGENDA_ITEM_SORTS, isAgendaItemSort, type AgendaItemSort } from "../../validators/agendaItems";
 import { datetimeLocalToDb, dbToDatetimeLocal } from "../../validators/announcements";
 import { Layout } from "../../views/layout";
 import {
@@ -18,7 +18,7 @@ import type { SelectOption } from "../../views/admin/committeeMemberships";
 export const agendaItemsRoute = new Hono<AppEnv>();
 
 /** P1-4: 年度・種類での絞り込み(GET フォーム、JS 不要)。公開側 §6.2 と同じパターン。 */
-const listAgendaItems = (DB: D1Database, year: string, category: string) => {
+const listAgendaItems = (DB: D1Database, year: string, category: string, sort: AgendaItemSort) => {
   const conditions: string[] = [];
   const binds: (string | number)[] = [];
   if (year !== "") {
@@ -33,12 +33,18 @@ const listAgendaItems = (DB: D1Database, year: string, category: string) => {
   return DB.prepare(
     `SELECT id, title, fiscal_year, number, category, published_at, (published_at > datetime('now')) AS is_reserved
      FROM agenda_items ${where}
-     ORDER BY fiscal_year DESC, category ASC, number DESC`
+     ORDER BY ${AGENDA_ITEM_SORTS[sort]}`
   )
     .bind(...binds)
     .all<AgendaItemRow>()
     .then((r) => r.results);
 };
+
+const listAgendaItemDocuments = (DB: D1Database, agendaItemId: number) =>
+  DB.prepare(`SELECT id, file_name, file_size FROM documents WHERE agenda_item_id = ? ORDER BY created_at DESC`)
+    .bind(agendaItemId)
+    .all<{ id: number; file_name: string; file_size: number }>()
+    .then((r) => r.results);
 
 const listFiscalYears = (DB: D1Database) =>
   DB.prepare(`SELECT DISTINCT fiscal_year FROM agenda_items ORDER BY fiscal_year DESC`)
@@ -83,13 +89,14 @@ const render = async (
   editingId: number | null,
   status: 200 | 400 = 200,
   flash?: FlashKind,
-  filter: { year: string; category: string } = { year: "", category: "" }
+  filter: { year: string; category: string; sort: AgendaItemSort } = { year: "", category: "", sort: "fiscal_year_desc" }
 ) => {
-  const [rows, years, agendaTypes, committees] = await Promise.all([
-    listAgendaItems(c.env.DB, filter.year, filter.category),
+  const [rows, years, agendaTypes, committees, documents] = await Promise.all([
+    listAgendaItems(c.env.DB, filter.year, filter.category, filter.sort),
     listFiscalYears(c.env.DB),
     listAgendaTypeOptions(c.env.DB),
     listCommitteeOptions(c.env.DB),
+    editingId ? listAgendaItemDocuments(c.env.DB, editingId) : Promise.resolve([]),
   ]);
   return c.html(
     <Layout title="議題管理" variant="admin" adminEmail={c.get("adminEmail")} flash={flash}>
@@ -102,6 +109,7 @@ const render = async (
         form={form}
         errors={errors}
         editingId={editingId}
+        documents={documents}
       />
     </Layout>,
     status
@@ -115,8 +123,10 @@ const render = async (
 agendaItemsRoute.get("/", async (c) => {
   const year = c.req.query("fiscal_year") ?? "";
   const category = c.req.query("category") ?? "";
+  const sortRaw = c.req.query("sort") ?? "";
+  const sort = isAgendaItemSort(sortRaw) ? sortRaw : "fiscal_year_desc";
   const form = formFromQuery(emptyAgendaItemForm, c.req.query(), ["fiscal_year", "category"]);
-  return render(c, form, [], null, 200, getFlash(c), { year, category });
+  return render(c, form, [], null, 200, getFlash(c), { year, category, sort });
 });
 
 agendaItemsRoute.get("/:id/edit", async (c) => {

@@ -50,6 +50,9 @@ apiDocumentsRoute.post("/", async (c) => {
 
   const agendaItemIdRaw = form["agenda_item_id"];
   const agendaItemId = typeof agendaItemIdRaw === "string" && agendaItemIdRaw !== "" ? Number(agendaItemIdRaw) : null;
+  // 議題編集画面からのアップロードは、アップロード後に同じ議題の編集画面へ戻す。
+  // リダイレクト先はクライアントの任意文字列ではなく、検証済みの agendaItemId から自前で組み立てる(open redirect にならない)。
+  const returnToAgendaItem = form["return_to"] === "agenda_item" && agendaItemId !== null;
 
   const r2Key = generateR2Key(extension);
   const contentType = canonicalContentType(extension);
@@ -75,6 +78,9 @@ apiDocumentsRoute.post("/", async (c) => {
         },
         201
       );
+    }
+    if (returnToAgendaItem) {
+      return c.redirect(withFlash(`/admin/agenda-items/${agendaItemId}/edit`, "created"));
     }
     return c.redirect(withFlash("/admin/documents", "created"));
   } catch {

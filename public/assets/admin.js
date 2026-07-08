@@ -10,6 +10,23 @@ if (document.querySelector("[data-flash]")) {
   }
 }
 
+// ナビのグループメニュー: <details> は素の HTML でも開閉できるが、
+// 1つ開いたら他は閉じる・外側クリックで閉じる、という一般的なメニューの挙動を JS で補う。
+const navGroupDetails = Array.from(document.querySelectorAll(".nav-group details"));
+navGroupDetails.forEach((details) => {
+  details.addEventListener("toggle", () => {
+    if (!details.open) return;
+    navGroupDetails.forEach((other) => {
+      if (other !== details) other.open = false;
+    });
+  });
+});
+document.addEventListener("click", (e) => {
+  navGroupDetails.forEach((details) => {
+    if (details.open && !details.contains(e.target)) details.open = false;
+  });
+});
+
 document.querySelectorAll("form[data-confirm]").forEach((form) => {
   form.addEventListener("submit", (e) => {
     const message = form.getAttribute("data-confirm");

@@ -1,6 +1,6 @@
 import type { FC } from "hono/jsx";
 import { agendaItemCategories, agendaItemCategoryLabels } from "../../validators/agendaItems";
-import { meetingTypeLabels, meetingTypes, startTypeLabels, startTypes } from "../../validators/meetings";
+import { meetingTypeLabels, meetingTypes, startTypeLabels, startTypes, type MeetingSort } from "../../validators/meetings";
 import type { SelectOption } from "./committeeMemberships";
 import { AdminSection, DeleteForm, ErrorList } from "./shared";
 
@@ -65,11 +65,16 @@ const groupByFiscalYear = (items: AgendaItemOption[]): [number, AgendaItemOption
 const meetingLabel = (r: MeetingRow) => (r.meeting_type === "committee" ? (r.committee_name ?? "委員会") : "本会議");
 const startLabel = (r: MeetingRow) => (r.start_type === "fixed" ? r.start_time : "前の会議終了後");
 
+const MEETING_SORT_LABELS: Record<MeetingSort, string> = {
+  date_desc: "開催日が新しい順",
+  date_asc: "開催日が古い順",
+};
+
 export const MeetingsListPage: FC<{
   rows: MeetingRow[];
   months: string[];
   regularSessions: SelectOption[];
-  filter: { month: string; regularSessionId: string };
+  filter: { month: string; regularSessionId: string; sort: MeetingSort };
 }> = ({ rows, months, regularSessions, filter }) => (
   <AdminSection title="日程一覧" description="新規登録・チェーン登録は「新しい日程を登録」から行います。">
     <p>
@@ -100,6 +105,16 @@ export const MeetingsListPage: FC<{
           {regularSessions.map((s) => (
             <option value={s.id} selected={String(s.id) === filter.regularSessionId}>
               {s.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        並べ替え
+        <select name="sort">
+          {(Object.keys(MEETING_SORT_LABELS) as MeetingSort[]).map((key) => (
+            <option value={key} selected={key === filter.sort}>
+              {MEETING_SORT_LABELS[key]}
             </option>
           ))}
         </select>

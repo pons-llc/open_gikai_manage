@@ -1,5 +1,5 @@
 import type { FC } from "hono/jsx";
-import { agendaItemCategories, agendaItemCategoryLabels } from "../../validators/agendaItems";
+import { agendaItemCategories, agendaItemCategoryLabels, type AgendaItemSort } from "../../validators/agendaItems";
 import type { SelectOption } from "./committeeMemberships";
 import { AdminSection, DeleteForm, ErrorList } from "./shared";
 
@@ -11,6 +11,21 @@ export type AgendaItemRow = {
   category: string;
   published_at: string;
   is_reserved: number;
+};
+
+export type AgendaItemDocumentRow = { id: number; file_name: string; file_size: number };
+
+const SORT_LABELS: Record<AgendaItemSort, string> = {
+  fiscal_year_desc: "年度が新しい順",
+  fiscal_year_asc: "年度が古い順",
+  number_desc: "番号が大きい順",
+  number_asc: "番号が小さい順",
+};
+
+const formatBytes = (bytes: number): string => {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
 
 export type AgendaItemFormValues = {
@@ -36,13 +51,14 @@ export const emptyAgendaItemForm: AgendaItemFormValues = {
 export const AgendaItemsPage: FC<{
   rows: AgendaItemRow[];
   years: number[];
-  filter: { year: string; category: string };
+  filter: { year: string; category: string; sort: AgendaItemSort };
   agendaTypes: SelectOption[];
   committees: SelectOption[];
   form: AgendaItemFormValues;
   errors: string[];
   editingId: number | null;
-}> = ({ rows, years, filter, agendaTypes, committees, form, errors, editingId }) => (
+  documents: AgendaItemDocumentRow[];
+}> = ({ rows, years, filter, agendaTypes, committees, form, errors, editingId, documents }) => (
   <>
     <div class="admin-header-note">公開サイトへの反映には最大30分かかります(design.md §9.1)。</div>
 
@@ -70,6 +86,16 @@ export const AgendaItemsPage: FC<{
             {agendaItemCategories.map((c) => (
               <option value={c} selected={c === filter.category}>
                 {agendaItemCategoryLabels[c]}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          並べ替え
+          <select name="sort">
+            {(Object.keys(SORT_LABELS) as AgendaItemSort[]).map((key) => (
+              <option value={key} selected={key === filter.sort}>
+                {SORT_LABELS[key]}
               </option>
             ))}
           </select>
@@ -188,5 +214,32 @@ export const AgendaItemsPage: FC<{
         )}
       </form>
     </AdminSection>
+
+    {editingId && (
+      <AdminSection title="この議題の資料">
+        {documents.length === 0 ? (
+          <p>この議題に紐づく資料はありません。</p>
+        ) : (
+          <ul class="list-plain">
+            {documents.map((d) => (
+              <li>
+                {d.file_name}({formatBytes(d.file_size)})
+              </li>
+            ))}
+          </ul>
+        )}
+        <form method="post" action="/api/admin/documents" enctype="multipart/form-data" class="admin-form">
+          <input type="hidden" name="agenda_item_id" value={editingId} />
+          <input type="hidden" name="return_to" value="agenda_item" />
+          <div class="field">
+            <label for="agenda_item_document_file">ファイル</label>
+            <input type="file" id="agenda_item_document_file" name="file" required />
+          </div>
+          <button type="submit" class="button button--primary">
+            この議題に資料をアップロード
+          </button>
+        </form>
+      </AdminSection>
+    )}
   </>
 );

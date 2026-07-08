@@ -4,7 +4,7 @@ import { logAdminMutation } from "../../lib/auditLog";
 import { wouldCreateCycle } from "../../lib/meetings";
 import { formFromQuery, idList, str, type ParsedForm } from "../../lib/forms";
 import { getFlash, withFlash } from "../../lib/flash";
-import { meetingSchema } from "../../validators/meetings";
+import { meetingSchema, MEETING_SORTS, isMeetingSort, type MeetingSort } from "../../validators/meetings";
 import { Layout } from "../../views/layout";
 import {
   MeetingFormPage,
@@ -20,8 +20,8 @@ import type { SelectOption } from "../../views/admin/committeeMemberships";
 
 export const meetingsRoute = new Hono<AppEnv>();
 
-/** P1-4: 年月・定例会での絞り込み(GET フォーム、JS 不要)。 */
-const listMeetings = (DB: D1Database, month: string, regularSessionId: string) => {
+/** P1-4: 年月・定例会での絞り込み(GET フォーム、JS 不要)。並べ替えは MEETING_SORTS のホワイトリストのみ。 */
+const listMeetings = (DB: D1Database, month: string, regularSessionId: string, sort: MeetingSort) => {
   const conditions: string[] = [];
   const binds: (string | number)[] = [];
   if (month !== "") {
@@ -40,7 +40,7 @@ const listMeetings = (DB: D1Database, month: string, regularSessionId: string) =
      LEFT JOIN committees c ON c.id = m.committee_id
      LEFT JOIN regular_sessions rs ON rs.id = m.regular_session_id
      ${where}
-     ORDER BY m.date DESC, m.id DESC`
+     ORDER BY ${MEETING_SORTS[sort]}`
   )
     .bind(...binds)
     .all<MeetingRow>()
@@ -218,8 +218,10 @@ const render = async (
 meetingsRoute.get("/", async (c) => {
   const month = c.req.query("month") ?? "";
   const regularSessionId = c.req.query("regular_session_id") ?? "";
+  const sortRaw = c.req.query("sort") ?? "";
+  const sort = isMeetingSort(sortRaw) ? sortRaw : "date_desc";
   const [rows, months, regularSessions] = await Promise.all([
-    listMeetings(c.env.DB, month, regularSessionId),
+    listMeetings(c.env.DB, month, regularSessionId, sort),
     listMeetingMonths(c.env.DB),
     listRegularSessionOptions(c.env.DB),
   ]);
@@ -229,7 +231,7 @@ meetingsRoute.get("/", async (c) => {
         rows={rows}
         months={months}
         regularSessions={regularSessions}
-        filter={{ month, regularSessionId }}
+        filter={{ month, regularSessionId, sort }}
       />
     </Layout>
   );
@@ -357,7 +359,7 @@ meetingsRoute.post("/:id/delete", async (c) => {
     await c.env.DB.prepare(`DELETE FROM meetings WHERE id = ?`).bind(id).run();
   } catch {
     const [rows, months, regularSessions] = await Promise.all([
-      listMeetings(c.env.DB, "", ""),
+      listMeetings(c.env.DB, "", "", "date_desc"),
       listMeetingMonths(c.env.DB),
       listRegularSessionOptions(c.env.DB),
     ]);
@@ -366,7 +368,12 @@ meetingsRoute.post("/:id/delete", async (c) => {
         <p class="error-banner" role="alert">
           この会議を「前の会議」として指定している会議があるため削除できません(先にその会議の設定を変更してください)。
         </p>
-        <MeetingsListPage rows={rows} months={months} regularSessions={regularSessions} filter={{ month: "", regularSessionId: "" }} />
+        <MeetingsListPage
+          rows={rows}
+          months={months}
+          regularSessions={regularSessions}
+          filter={{ month: "", regularSessionId: "", sort: "date_desc" }}
+        />
       </Layout>,
       400
     );

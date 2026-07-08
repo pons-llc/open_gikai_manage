@@ -47,3 +47,11 @@ export const meetingSchema = z
   });
 
 export type MeetingInput = z.infer<typeof meetingSchema>;
+
+/** 一覧の並べ替え。ORDER BY は bind できないため、固定の列挙(ホワイトリスト)からのみ SQL 断片を選ぶ。 */
+export const MEETING_SORTS = {
+  date_desc: "m.date DESC, m.id DESC",
+  date_asc: "m.date ASC, m.id ASC",
+} as const;
+export type MeetingSort = keyof typeof MEETING_SORTS;
+export const isMeetingSort = (v: string): v is MeetingSort => v in MEETING_SORTS;

@@ -37,3 +37,13 @@ export const agendaItemSchema = z
   });
 
 export type AgendaItemInput = z.infer<typeof agendaItemSchema>;
+
+/** 一覧の並べ替え。ORDER BY は bind できないため、固定の列挙(ホワイトリスト)からのみ SQL 断片を選ぶ。 */
+export const AGENDA_ITEM_SORTS = {
+  fiscal_year_desc: "fiscal_year DESC, number DESC",
+  fiscal_year_asc: "fiscal_year ASC, number ASC",
+  number_desc: "number DESC",
+  number_asc: "number ASC",
+} as const;
+export type AgendaItemSort = keyof typeof AGENDA_ITEM_SORTS;
+export const isAgendaItemSort = (v: string): v is AgendaItemSort => v in AGENDA_ITEM_SORTS;

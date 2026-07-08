@@ -11,8 +11,9 @@ const PUBLIC_NAV = [
 ];
 
 /**
- * P1-3: 「1テーブル=1画面」のフラットな並びをやめ、実務単位でグループ化する。
- * 「委員会所属」「会派所属」はここから外す(P2 のハブ画面に吸収。既存 URL は維持するのでブックマークは壊れない)。
+ * 「1テーブル=1画面」のフラットな並びをやめ、実務単位でグループ化する。
+ * 各グループはクリックで開閉するメニュー(<details>、JS 不要)。
+ * 議員・会派・会派所属・委員会所属は同じグループにまとめる。
  */
 const ADMIN_NAV_GROUPS: { label: string; items: { href: string; label: string }[] }[] = [
   {
@@ -30,6 +31,8 @@ const ADMIN_NAV_GROUPS: { label: string; items: { href: string; label: string }[
     items: [
       { href: "/admin/members", label: "議員" },
       { href: "/admin/factions", label: "会派" },
+      { href: "/admin/faction-memberships", label: "会派所属" },
+      { href: "/admin/memberships", label: "委員会所属" },
     ],
   },
   {
@@ -76,14 +79,16 @@ export const Layout: FC<LayoutProps> = ({
                 <>
                   {ADMIN_NAV_GROUPS.map((group) => (
                     <li class="nav-group">
-                      <span class="nav-group__label">{group.label}</span>
-                      <ul class="nav-group__items">
-                        {group.items.map((item) => (
-                          <li>
-                            <a href={item.href}>{item.label}</a>
-                          </li>
-                        ))}
-                      </ul>
+                      <details>
+                        <summary class="nav-group__label">{group.label}</summary>
+                        <ul class="nav-group__menu">
+                          {group.items.map((item) => (
+                            <li>
+                              <a href={item.href}>{item.label}</a>
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
                     </li>
                   ))}
                   <li>
