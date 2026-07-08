@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import type { AppEnv } from "../../env";
 import { logAdminMutation } from "../../lib/auditLog";
 import { str } from "../../lib/forms";
+import { getFlash, withFlash } from "../../lib/flash";
 import { isVoteResult } from "../../validators/votes";
 import { Layout } from "../../views/layout";
 import {
@@ -91,7 +92,7 @@ votesRoute.get("/:meetingId", async (c) => {
   for (const v of existingCells) cells[`${v.agenda_item_id}_${v.member_id}`] = v.vote_result;
 
   return c.html(
-    <Layout title="賛否記録" variant="admin" adminEmail={c.get("adminEmail")}>
+    <Layout title="賛否記録" variant="admin" adminEmail={c.get("adminEmail")} flash={getFlash(c)}>
       <VoteGridPage
         date={meeting.date}
         meetingLabel={meeting.meeting_label}
@@ -149,5 +150,5 @@ votesRoute.post("/:meetingId", async (c) => {
     // グリッド一括保存のため、セル単位ではなく会議単位で1件だけ記録する。
     logAdminMutation(c, "agenda_item_votes", meetingId, "update");
   }
-  return c.redirect(`/admin/votes/${meetingId}`);
+  return c.redirect(withFlash(`/admin/votes/${meetingId}`, "updated"));
 });

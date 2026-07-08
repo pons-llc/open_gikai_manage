@@ -1,7 +1,8 @@
 import { Hono, type Context } from "hono";
 import type { AppEnv } from "../../env";
 import { logAdminMutation } from "../../lib/auditLog";
-import { str, type ParsedForm } from "../../lib/forms";
+import { formFromQuery, str, type ParsedForm } from "../../lib/forms";
+import { getFlash, withFlash, type FlashKind } from "../../lib/flash";
 import { committeeMembershipSchema, termsOverlap } from "../../validators/committeeMemberships";
 import { Layout } from "../../views/layout";
 import {
@@ -49,7 +50,8 @@ const render = async (
   form: CommitteeMembershipFormValues,
   errors: string[],
   editingId: number | null,
-  status: 200 | 400 = 200
+  status: 200 | 400 = 200,
+  flash?: FlashKind
 ) => {
   const [rows, committees, members] = await Promise.all([
     listMemberships(c.env.DB),
@@ -57,7 +59,7 @@ const render = async (
     listMemberOptions(c.env.DB),
   ]);
   return c.html(
-    <Layout title="委員会所属管理" variant="admin" adminEmail={c.get("adminEmail")}>
+    <Layout title="委員会所属管理" variant="admin" adminEmail={c.get("adminEmail")} flash={flash}>
       <CommitteeMembershipsPage
         rows={rows}
         committees={committees}
@@ -88,7 +90,11 @@ const checkOverlap = async (
   return results.some((r) => termsOverlap(termStart, termEnd, r.term_start, r.term_end));
 };
 
-committeeMembershipsRoute.get("/", async (c) => render(c, emptyCommitteeMembershipForm, [], null));
+/** P1-2: 委員会所属を続けて入力する場合、委員会・役職(=委員に戻す)・任期開始を引き継ぐ。 */
+committeeMembershipsRoute.get("/", async (c) => {
+  const form = formFromQuery(emptyCommitteeMembershipForm, c.req.query(), ["committee_id", "role", "term_start"]);
+  return render(c, form, [], null, 200, getFlash(c));
+});
 
 committeeMembershipsRoute.get("/:id/edit", async (c) => {
   const id = Number(c.req.param("id"));
@@ -113,7 +119,8 @@ committeeMembershipsRoute.get("/:id/edit", async (c) => {
 });
 
 committeeMembershipsRoute.post("/", async (c) => {
-  const form = readForm(await c.req.parseBody());
+  const rawForm = await c.req.parseBody();
+  const form = readForm(rawForm);
   const parsed = committeeMembershipSchema.safeParse({
     committee_id: Number(form.committee_id) || 0,
     member_id: Number(form.member_id) || 0,
@@ -141,7 +148,17 @@ committeeMembershipsRoute.post("/", async (c) => {
     .bind(parsed.data.committee_id, parsed.data.member_id, parsed.data.role, parsed.data.term_start, parsed.data.term_end)
     .run();
   logAdminMutation(c, "committee_memberships", result.meta.last_row_id ?? null, "create");
-  return c.redirect("/admin/memberships");
+  if (str(rawForm, "save_mode") === "continue") {
+    // §3-1: 連続登録では役職を都度選び直させず「委員」に戻す(委員長・副委員長は通常1人ずつのため)。
+    return c.redirect(
+      withFlash("/admin/memberships", "created", {
+        committee_id: String(parsed.data.committee_id),
+        role: "member",
+        term_start: parsed.data.term_start,
+      })
+    );
+  }
+  return c.redirect(withFlash("/admin/memberships", "created"));
 });
 
 committeeMembershipsRoute.post("/:id", async (c) => {
@@ -175,12 +192,12 @@ committeeMembershipsRoute.post("/:id", async (c) => {
     .run();
   if (result.meta.changes === 0) return c.notFound();
   logAdminMutation(c, "committee_memberships", id, "update");
-  return c.redirect("/admin/memberships");
+  return c.redirect(withFlash("/admin/memberships", "updated"));
 });
 
 committeeMembershipsRoute.post("/:id/delete", async (c) => {
   const id = Number(c.req.param("id"));
   await c.env.DB.prepare(`DELETE FROM committee_memberships WHERE id = ?`).bind(id).run();
   logAdminMutation(c, "committee_memberships", id, "delete");
-  return c.redirect("/admin/memberships");
+  return c.redirect(withFlash("/admin/memberships", "deleted"));
 });

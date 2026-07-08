@@ -2,6 +2,7 @@ import { Hono, type Context } from "hono";
 import type { AppEnv } from "../../env";
 import { logAdminMutation } from "../../lib/auditLog";
 import { str, type ParsedForm } from "../../lib/forms";
+import { getFlash, withFlash, type FlashKind } from "../../lib/flash";
 import { agendaTypeSchema } from "../../validators/agendaTypes";
 import { Layout } from "../../views/layout";
 import {
@@ -28,18 +29,19 @@ const render = async (
   form: AgendaTypeFormValues,
   errors: string[],
   editingId: number | null,
-  status: 200 | 400 = 200
+  status: 200 | 400 = 200,
+  flash?: FlashKind
 ) => {
   const rows = await listAgendaTypes(c.env.DB);
   return c.html(
-    <Layout title="議案種別管理" variant="admin" adminEmail={c.get("adminEmail")}>
+    <Layout title="議案種別管理" variant="admin" adminEmail={c.get("adminEmail")} flash={flash}>
       <AgendaTypesPage rows={rows} form={form} errors={errors} editingId={editingId} />
     </Layout>,
     status
   );
 };
 
-agendaTypesRoute.get("/", async (c) => render(c, emptyAgendaTypeForm, [], null));
+agendaTypesRoute.get("/", async (c) => render(c, emptyAgendaTypeForm, [], null, 200, getFlash(c)));
 
 agendaTypesRoute.get("/:id/edit", async (c) => {
   const id = Number(c.req.param("id"));
@@ -64,7 +66,7 @@ agendaTypesRoute.post("/", async (c) => {
   } catch {
     return render(c, form, ["同じ名称の議案種別が既に存在します"], null, 400);
   }
-  return c.redirect("/admin/agenda-types");
+  return c.redirect(withFlash("/admin/agenda-types", "created"));
 });
 
 agendaTypesRoute.post("/:id", async (c) => {
@@ -83,7 +85,7 @@ agendaTypesRoute.post("/:id", async (c) => {
   } catch {
     return render(c, form, ["同じ名称の議案種別が既に存在します"], id, 400);
   }
-  return c.redirect("/admin/agenda-types");
+  return c.redirect(withFlash("/admin/agenda-types", "updated"));
 });
 
 agendaTypesRoute.post("/:id/delete", async (c) => {
@@ -94,5 +96,5 @@ agendaTypesRoute.post("/:id/delete", async (c) => {
     return render(c, emptyAgendaTypeForm, ["使用中のため削除できません(議題で参照されています)"], null, 400);
   }
   logAdminMutation(c, "agenda_types", id, "delete");
-  return c.redirect("/admin/agenda-types");
+  return c.redirect(withFlash("/admin/agenda-types", "deleted"));
 });

@@ -1,6 +1,7 @@
 import { Hono, type Context } from "hono";
 import type { AppEnv } from "../../../env";
 import { logAdminMutation } from "../../../lib/auditLog";
+import { withFlash } from "../../../lib/flash";
 import {
   MAX_FILE_SIZE_BYTES,
   canonicalContentType,
@@ -75,7 +76,7 @@ apiDocumentsRoute.post("/", async (c) => {
         201
       );
     }
-    return c.redirect("/admin/documents");
+    return c.redirect(withFlash("/admin/documents", "created"));
   } catch {
     // DB INSERT 失敗時(存在しない agenda_item_id 等)は R2 に残った孤立オブジェクトを掃除する。
     await c.env.BUCKET.delete(r2Key);

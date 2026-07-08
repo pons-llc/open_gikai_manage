@@ -2,6 +2,7 @@ import { Hono, type Context } from "hono";
 import type { AppEnv } from "../../env";
 import { logAdminMutation } from "../../lib/auditLog";
 import { str, type ParsedForm } from "../../lib/forms";
+import { getFlash, withFlash, type FlashKind } from "../../lib/flash";
 import { sessionSchema } from "../../validators/sessions";
 import { Layout } from "../../views/layout";
 import {
@@ -29,18 +30,19 @@ const render = async (
   form: SessionFormValues,
   errors: string[],
   editingId: number | null,
-  status: 200 | 400 = 200
+  status: 200 | 400 = 200,
+  flash?: FlashKind
 ) => {
   const rows = await listSessions(c.env.DB);
   return c.html(
-    <Layout title="定例会管理" variant="admin" adminEmail={c.get("adminEmail")}>
+    <Layout title="定例会管理" variant="admin" adminEmail={c.get("adminEmail")} flash={flash}>
       <SessionsPage rows={rows} form={form} errors={errors} editingId={editingId} />
     </Layout>,
     status
   );
 };
 
-sessionsRoute.get("/", async (c) => render(c, emptySessionForm, [], null));
+sessionsRoute.get("/", async (c) => render(c, emptySessionForm, [], null, 200, getFlash(c)));
 
 sessionsRoute.get("/:id/edit", async (c) => {
   const id = Number(c.req.param("id"));
@@ -61,7 +63,7 @@ sessionsRoute.post("/", async (c) => {
     .bind(parsed.data.name, parsed.data.start_date, parsed.data.end_date)
     .run();
   logAdminMutation(c, "regular_sessions", result.meta.last_row_id ?? null, "create");
-  return c.redirect("/admin/sessions");
+  return c.redirect(withFlash("/admin/sessions", "created"));
 });
 
 sessionsRoute.post("/:id", async (c) => {
@@ -78,7 +80,7 @@ sessionsRoute.post("/:id", async (c) => {
     .run();
   if (result.meta.changes === 0) return c.notFound();
   logAdminMutation(c, "regular_sessions", id, "update");
-  return c.redirect("/admin/sessions");
+  return c.redirect(withFlash("/admin/sessions", "updated"));
 });
 
 sessionsRoute.post("/:id/delete", async (c) => {
@@ -89,5 +91,5 @@ sessionsRoute.post("/:id/delete", async (c) => {
     return render(c, emptySessionForm, ["使用中のため削除できません(日程などで参照されています)"], null, 400);
   }
   logAdminMutation(c, "regular_sessions", id, "delete");
-  return c.redirect("/admin/sessions");
+  return c.redirect(withFlash("/admin/sessions", "deleted"));
 });

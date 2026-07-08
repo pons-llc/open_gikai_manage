@@ -2,6 +2,7 @@ import { Hono, type Context } from "hono";
 import type { AppEnv } from "../../env";
 import { logAdminMutation } from "../../lib/auditLog";
 import { checkboxOn, str, type ParsedForm } from "../../lib/forms";
+import { getFlash, withFlash, type FlashKind } from "../../lib/flash";
 import { factionSchema } from "../../validators/factions";
 import { Layout } from "../../views/layout";
 import {
@@ -29,18 +30,19 @@ const render = async (
   form: FactionFormValues,
   errors: string[],
   editingId: number | null,
-  status: 200 | 400 = 200
+  status: 200 | 400 = 200,
+  flash?: FlashKind
 ) => {
   const rows = await listFactions(c.env.DB);
   return c.html(
-    <Layout title="会派管理" variant="admin" adminEmail={c.get("adminEmail")}>
+    <Layout title="会派管理" variant="admin" adminEmail={c.get("adminEmail")} flash={flash}>
       <FactionsPage rows={rows} form={form} errors={errors} editingId={editingId} />
     </Layout>,
     status
   );
 };
 
-factionsRoute.get("/", async (c) => render(c, emptyFactionForm, [], null));
+factionsRoute.get("/", async (c) => render(c, emptyFactionForm, [], null, 200, getFlash(c)));
 
 factionsRoute.get("/:id/edit", async (c) => {
   const id = Number(c.req.param("id"));
@@ -61,7 +63,7 @@ factionsRoute.post("/", async (c) => {
     .bind(parsed.data.name, parsed.data.established_on, parsed.data.is_active ? 1 : 0)
     .run();
   logAdminMutation(c, "factions", result.meta.last_row_id ?? null, "create");
-  return c.redirect("/admin/factions");
+  return c.redirect(withFlash("/admin/factions", "created"));
 });
 
 factionsRoute.post("/:id", async (c) => {
@@ -76,7 +78,7 @@ factionsRoute.post("/:id", async (c) => {
     .run();
   if (result.meta.changes === 0) return c.notFound();
   logAdminMutation(c, "factions", id, "update");
-  return c.redirect("/admin/factions");
+  return c.redirect(withFlash("/admin/factions", "updated"));
 });
 
 factionsRoute.post("/:id/delete", async (c) => {
@@ -87,5 +89,5 @@ factionsRoute.post("/:id/delete", async (c) => {
     return render(c, emptyFactionForm, ["使用中のため削除できません(会派所属で参照されています)"], null, 400);
   }
   logAdminMutation(c, "factions", id, "delete");
-  return c.redirect("/admin/factions");
+  return c.redirect(withFlash("/admin/factions", "deleted"));
 });

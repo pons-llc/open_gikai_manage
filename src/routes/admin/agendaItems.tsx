@@ -1,7 +1,8 @@
 import { Hono, type Context } from "hono";
 import type { AppEnv } from "../../env";
 import { logAdminMutation } from "../../lib/auditLog";
-import { str, type ParsedForm } from "../../lib/forms";
+import { formFromQuery, str, type ParsedForm } from "../../lib/forms";
+import { getFlash, withFlash, type FlashKind } from "../../lib/flash";
 import { agendaItemSchema } from "../../validators/agendaItems";
 import { datetimeLocalToDb, dbToDatetimeLocal } from "../../validators/announcements";
 import { Layout } from "../../views/layout";
@@ -60,7 +61,8 @@ const render = async (
   form: AgendaItemFormValues,
   errors: string[],
   editingId: number | null,
-  status: 200 | 400 = 200
+  status: 200 | 400 = 200,
+  flash?: FlashKind
 ) => {
   const [rows, agendaTypes, committees] = await Promise.all([
     listAgendaItems(c.env.DB),
@@ -68,7 +70,7 @@ const render = async (
     listCommitteeOptions(c.env.DB),
   ]);
   return c.html(
-    <Layout title="議題管理" variant="admin" adminEmail={c.get("adminEmail")}>
+    <Layout title="議題管理" variant="admin" adminEmail={c.get("adminEmail")} flash={flash}>
       <AgendaItemsPage
         rows={rows}
         agendaTypes={agendaTypes}
@@ -82,7 +84,11 @@ const render = async (
   );
 };
 
-agendaItemsRoute.get("/", async (c) => render(c, emptyAgendaItemForm, [], null));
+/** P1-2: 同年度の議題を続けて登録する場合に年度・種類を引き継ぐ。 */
+agendaItemsRoute.get("/", async (c) => {
+  const form = formFromQuery(emptyAgendaItemForm, c.req.query(), ["fiscal_year", "category"]);
+  return render(c, form, [], null, 200, getFlash(c));
+});
 
 agendaItemsRoute.get("/:id/edit", async (c) => {
   const id = Number(c.req.param("id"));
@@ -119,7 +125,8 @@ agendaItemsRoute.get("/:id/edit", async (c) => {
 });
 
 agendaItemsRoute.post("/", async (c) => {
-  const form = readForm(await c.req.parseBody());
+  const rawForm = await c.req.parseBody();
+  const form = readForm(rawForm);
   const parsed = agendaItemSchema.safeParse(toSchemaInput(form));
   if (!parsed.success) {
     return render(c, form, parsed.error.issues.map((i) => i.message), null, 400);
@@ -143,7 +150,15 @@ agendaItemsRoute.post("/", async (c) => {
   } catch {
     return render(c, form, ["この年度・種類の番号は既に使用されています"], null, 400);
   }
-  return c.redirect("/admin/agenda-items");
+  if (str(rawForm, "save_mode") === "continue") {
+    return c.redirect(
+      withFlash("/admin/agenda-items", "created", {
+        fiscal_year: String(parsed.data.fiscal_year),
+        category: parsed.data.category,
+      })
+    );
+  }
+  return c.redirect(withFlash("/admin/agenda-items", "created"));
 });
 
 agendaItemsRoute.post("/:id", async (c) => {
@@ -175,12 +190,12 @@ agendaItemsRoute.post("/:id", async (c) => {
   } catch {
     return render(c, form, ["この年度・種類の番号は既に使用されています"], id, 400);
   }
-  return c.redirect("/admin/agenda-items");
+  return c.redirect(withFlash("/admin/agenda-items", "updated"));
 });
 
 agendaItemsRoute.post("/:id/delete", async (c) => {
   const id = Number(c.req.param("id"));
   await c.env.DB.prepare(`DELETE FROM agenda_items WHERE id = ?`).bind(id).run();
   logAdminMutation(c, "agenda_items", id, "delete");
-  return c.redirect("/admin/agenda-items");
+  return c.redirect(withFlash("/admin/agenda-items", "deleted"));
 });

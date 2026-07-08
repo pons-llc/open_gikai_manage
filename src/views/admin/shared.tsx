@@ -1,4 +1,14 @@
 import type { FC } from "hono/jsx";
+import { FLASH_LABELS, type FlashKind } from "../../lib/flash";
+
+export const FlashBanner: FC<{ flash?: FlashKind }> = ({ flash }) => {
+  if (!flash) return null;
+  return (
+    <div class="flash-banner" role="status" data-flash>
+      {FLASH_LABELS[flash]}
+    </div>
+  );
+};
 
 export const ErrorList: FC<{ errors: string[] }> = ({ errors }) => {
   if (errors.length === 0) return null;

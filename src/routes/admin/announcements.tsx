@@ -2,6 +2,7 @@ import { Hono, type Context } from "hono";
 import type { AppEnv } from "../../env";
 import { logAdminMutation } from "../../lib/auditLog";
 import { str, type ParsedForm } from "../../lib/forms";
+import { getFlash, withFlash, type FlashKind } from "../../lib/flash";
 import { announcementSchema, datetimeLocalToDb, dbToDatetimeLocal } from "../../validators/announcements";
 import { Layout } from "../../views/layout";
 import {
@@ -33,18 +34,19 @@ const render = async (
   form: AnnouncementFormValues,
   errors: string[],
   editingId: number | null,
-  status: 200 | 400 = 200
+  status: 200 | 400 = 200,
+  flash?: FlashKind
 ) => {
   const rows = await listAnnouncements(c.env.DB);
   return c.html(
-    <Layout title="お知らせ管理" variant="admin" adminEmail={c.get("adminEmail")}>
+    <Layout title="お知らせ管理" variant="admin" adminEmail={c.get("adminEmail")} flash={flash}>
       <AnnouncementsPage rows={rows} form={form} errors={errors} editingId={editingId} />
     </Layout>,
     status
   );
 };
 
-announcementsRoute.get("/", async (c) => render(c, emptyAnnouncementForm, [], null));
+announcementsRoute.get("/", async (c) => render(c, emptyAnnouncementForm, [], null, 200, getFlash(c)));
 
 announcementsRoute.get("/:id/edit", async (c) => {
   const id = Number(c.req.param("id"));
@@ -84,7 +86,7 @@ announcementsRoute.post("/", async (c) => {
     .bind(parsed.data.subject, parsed.data.body, parsed.data.related_url, parsed.data.published_at)
     .run();
   logAdminMutation(c, "announcements", result.meta.last_row_id ?? null, "create");
-  return c.redirect("/admin/announcements");
+  return c.redirect(withFlash("/admin/announcements", "created"));
 });
 
 announcementsRoute.post("/:id", async (c) => {
@@ -108,12 +110,12 @@ announcementsRoute.post("/:id", async (c) => {
     .run();
   if (result.meta.changes === 0) return c.notFound();
   logAdminMutation(c, "announcements", id, "update");
-  return c.redirect("/admin/announcements");
+  return c.redirect(withFlash("/admin/announcements", "updated"));
 });
 
 announcementsRoute.post("/:id/delete", async (c) => {
   const id = Number(c.req.param("id"));
   await c.env.DB.prepare(`DELETE FROM announcements WHERE id = ?`).bind(id).run();
   logAdminMutation(c, "announcements", id, "delete");
-  return c.redirect("/admin/announcements");
+  return c.redirect(withFlash("/admin/announcements", "deleted"));
 });

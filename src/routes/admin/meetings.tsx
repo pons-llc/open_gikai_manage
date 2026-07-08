@@ -3,6 +3,7 @@ import type { AppEnv } from "../../env";
 import { logAdminMutation } from "../../lib/auditLog";
 import { wouldCreateCycle } from "../../lib/meetings";
 import { idList, str, type ParsedForm } from "../../lib/forms";
+import { getFlash, withFlash } from "../../lib/flash";
 import { meetingSchema } from "../../validators/meetings";
 import { Layout } from "../../views/layout";
 import {
@@ -189,7 +190,7 @@ const render = async (
 meetingsRoute.get("/", async (c) => {
   const rows = await listMeetings(c.env.DB);
   return c.html(
-    <Layout title="日程管理" variant="admin" adminEmail={c.get("adminEmail")}>
+    <Layout title="日程管理" variant="admin" adminEmail={c.get("adminEmail")} flash={getFlash(c)}>
       <MeetingsListPage rows={rows} />
     </Layout>
   );
@@ -270,7 +271,7 @@ meetingsRoute.post("/", async (c) => {
   const meetingId = result.meta.last_row_id as number;
   await saveAssociations(c.env.DB, meetingId, form);
   logAdminMutation(c, "meetings", meetingId, "create");
-  return c.redirect("/admin/meetings");
+  return c.redirect(withFlash("/admin/meetings", "created"));
 });
 
 meetingsRoute.post("/:id", async (c) => {
@@ -304,7 +305,7 @@ meetingsRoute.post("/:id", async (c) => {
   if (result.meta.changes === 0) return c.notFound();
   await saveAssociations(c.env.DB, id, form);
   logAdminMutation(c, "meetings", id, "update");
-  return c.redirect("/admin/meetings");
+  return c.redirect(withFlash("/admin/meetings", "updated"));
 });
 
 meetingsRoute.post("/:id/delete", async (c) => {
@@ -324,5 +325,5 @@ meetingsRoute.post("/:id/delete", async (c) => {
     );
   }
   logAdminMutation(c, "meetings", id, "delete");
-  return c.redirect("/admin/meetings");
+  return c.redirect(withFlash("/admin/meetings", "deleted"));
 });

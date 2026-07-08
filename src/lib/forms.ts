@@ -32,3 +32,22 @@ export const idList = (form: ParsedForm, key: string): number[] => {
     .map(Number)
     .filter((n) => Number.isInteger(n) && n > 0);
 };
+
+/**
+ * P1-2「登録して続けて入力」: リダイレクトのクエリで引き継いだ文脈フィールドを、
+ * 空フォームにマージして返す。クエリ由来の値も保存時は必ず既存の zod スキーマを通るため、
+ * ここでは素通し(型変換のみ)でよい(§7 リスク対策)。
+ * `keys` には文字列型のフィールドのみ渡すこと(呼び出し側の責任。汎用性のため型では強制しない)。
+ */
+export const formFromQuery = <T extends Record<string, unknown>>(
+  emptyForm: T,
+  query: Record<string, string | undefined>,
+  keys: (keyof T)[]
+): T => {
+  const merged = { ...emptyForm };
+  for (const key of keys) {
+    const v = query[key as string];
+    if (v !== undefined) (merged as Record<string, unknown>)[key as string] = v;
+  }
+  return merged;
+};

@@ -2,6 +2,7 @@ import { Hono, type Context } from "hono";
 import type { AppEnv } from "../../env";
 import { logAdminMutation } from "../../lib/auditLog";
 import { checkboxOn, str, type ParsedForm } from "../../lib/forms";
+import { getFlash, withFlash, type FlashKind } from "../../lib/flash";
 import { committeeSchema } from "../../validators/committees";
 import { Layout } from "../../views/layout";
 import {
@@ -30,18 +31,19 @@ const render = async (
   form: CommitteeFormValues,
   errors: string[],
   editingId: number | null,
-  status: 200 | 400 = 200
+  status: 200 | 400 = 200,
+  flash?: FlashKind
 ) => {
   const rows = await listCommittees(c.env.DB);
   return c.html(
-    <Layout title="委員会管理" variant="admin" adminEmail={c.get("adminEmail")}>
+    <Layout title="委員会管理" variant="admin" adminEmail={c.get("adminEmail")} flash={flash}>
       <CommitteesPage rows={rows} form={form} errors={errors} editingId={editingId} />
     </Layout>,
     status
   );
 };
 
-committeesRoute.get("/", async (c) => render(c, emptyCommitteeForm, [], null));
+committeesRoute.get("/", async (c) => render(c, emptyCommitteeForm, [], null, 200, getFlash(c)));
 
 committeesRoute.get("/:id/edit", async (c) => {
   const id = Number(c.req.param("id"));
@@ -79,7 +81,7 @@ committeesRoute.post("/", async (c) => {
     .bind(parsed.data.name, parsed.data.category, parsed.data.display_order, parsed.data.is_active ? 1 : 0)
     .run();
   logAdminMutation(c, "committees", result.meta.last_row_id ?? null, "create");
-  return c.redirect("/admin/committees");
+  return c.redirect(withFlash("/admin/committees", "created"));
 });
 
 committeesRoute.post("/:id", async (c) => {
@@ -101,7 +103,7 @@ committeesRoute.post("/:id", async (c) => {
     .run();
   if (result.meta.changes === 0) return c.notFound();
   logAdminMutation(c, "committees", id, "update");
-  return c.redirect("/admin/committees");
+  return c.redirect(withFlash("/admin/committees", "updated"));
 });
 
 committeesRoute.post("/:id/delete", async (c) => {
@@ -112,5 +114,5 @@ committeesRoute.post("/:id/delete", async (c) => {
     return render(c, emptyCommitteeForm, ["使用中のため削除できません(委員会所属・日程・議題などで参照されています)"], null, 400);
   }
   logAdminMutation(c, "committees", id, "delete");
-  return c.redirect("/admin/committees");
+  return c.redirect(withFlash("/admin/committees", "deleted"));
 });

@@ -1,6 +1,15 @@
 // 管理側 JS（フォームの出し分け・資料アップロード等の UX 向上用）。
 // サーバ側バリデーションで担保するため、JS 無効時も送信自体は成立させる（design.md §6.3）。
 
+// P1-1: フラッシュ表示後、リロードで再表示されないよう ?flash= 系クエリを URL から消す。
+if (document.querySelector("[data-flash]")) {
+  const url = new URL(window.location.href);
+  if (url.searchParams.has("flash")) {
+    url.searchParams.delete("flash");
+    window.history.replaceState({}, "", url.pathname + (url.search ? url.search : "") + url.hash);
+  }
+}
+
 document.querySelectorAll("form[data-confirm]").forEach((form) => {
   form.addEventListener("submit", (e) => {
     const message = form.getAttribute("data-confirm");
