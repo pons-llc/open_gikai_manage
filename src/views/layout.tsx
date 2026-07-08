@@ -23,7 +23,6 @@ const ADMIN_NAV_GROUPS: { label: string; items: { href: string; label: string }[
       { href: "/admin/meetings", label: "日程" },
       { href: "/admin/agenda-items", label: "議題" },
       { href: "/admin/documents", label: "資料" },
-      { href: "/admin/votes", label: "賛否記録" },
     ],
   },
   {

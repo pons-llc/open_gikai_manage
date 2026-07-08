@@ -35,7 +35,8 @@ const listMeetings = (DB: D1Database, month: string, regularSessionId: string, s
   const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
   return DB.prepare(
     `SELECT m.id, m.meeting_type, c.name AS committee_name, m.date, m.start_type, m.start_time,
-            rs.name AS regular_session_name
+            rs.name AS regular_session_name,
+            (SELECT COUNT(*) FROM meeting_agenda_items mai WHERE mai.meeting_id = m.id) AS agenda_item_count
      FROM meetings m
      LEFT JOIN committees c ON c.id = m.committee_id
      LEFT JOIN regular_sessions rs ON rs.id = m.regular_session_id

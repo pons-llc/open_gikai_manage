@@ -117,6 +117,25 @@ document.querySelectorAll("form[data-meeting-form]").forEach((form) => {
   syncFieldVisibility();
 });
 
+// 日程フォームの「選択する」/「新規作成する」タブ切り替え。
+// タブ自体は JS のみの装飾: JS 無効時は data-tabs-nav が hidden のまま出ず、
+// 「選択する」パネルは常に表示・「新規作成する」パネルは hidden のまま(既存の noscript 案内に委ねる)。
+document.querySelectorAll("[data-tabs]").forEach((container) => {
+  const nav = container.querySelector("[data-tabs-nav]");
+  if (!nav) return;
+  nav.hidden = false;
+  const buttons = Array.from(nav.querySelectorAll("[data-tab-button]"));
+  const panels = Array.from(container.querySelectorAll("[data-tab-panel]"));
+  const activate = (name) => {
+    buttons.forEach((b) => b.setAttribute("aria-selected", b.getAttribute("data-tab-button") === name ? "true" : "false"));
+    panels.forEach((p) => {
+      p.hidden = p.getAttribute("data-tab-panel") !== name;
+    });
+  };
+  buttons.forEach((b) => b.addEventListener("click", () => activate(b.getAttribute("data-tab-button"))));
+  activate("select");
+});
+
 // P3-1: 日程フォームの議題・資料チェックリストのインクリメンタル絞り込み(client-side, fetch不要)。
 // チェック済み行は絞り込みに関係なく常に表示する。JS無効時は現状どおり全件表示のまま。
 document.querySelectorAll("[data-filter-list]").forEach((list) => {
@@ -162,10 +181,16 @@ document.addEventListener("change", (e) => {
   orderInput.value = String(max + 1);
 });
 
+// 新規作成・アップロードが成功したら「選択する」タブへ自動で戻し、作成された行がその場で確認できるようにする。
+const activateSelectTab = (panel) => {
+  const tabsContainer = panel.closest("[data-tabs]");
+  const selectButton = tabsContainer && tabsContainer.querySelector('[data-tab-button="select"]');
+  if (selectButton) selectButton.click();
+};
+
 // P3-3: 会議資料のその場アップロード。既存 POST /api/admin/documents(Accept: application/json)を再利用し、
 // 日程フォーム自体は未送信のまま、成功したらチェックリストに行を動的追加してチェック済み+表示順自動採番にする。
 document.querySelectorAll("[data-inline-upload]").forEach((panel) => {
-  panel.hidden = false;
   const fileInput = panel.querySelector("[data-inline-upload-file]");
   const agendaSelect = panel.querySelector("[data-inline-upload-agenda]");
   const submitButton = panel.querySelector("[data-inline-upload-submit]");
@@ -237,6 +262,7 @@ document.querySelectorAll("[data-inline-upload]").forEach((panel) => {
 
       fileInput.value = "";
       if (agendaSelect) agendaSelect.value = "";
+      activateSelectTab(panel);
     } catch {
       showError("通信エラーが発生しました");
     } finally {
@@ -249,7 +275,6 @@ document.querySelectorAll("[data-inline-upload]").forEach((panel) => {
 // 成功したら議題チェックリストへ動的追加してチェック済み+表示順自動採番にする(P3-3 と同型)。
 // クイック作成は即時公開固定(予約公開したい場合は議題管理画面を使う)。
 document.querySelectorAll("[data-inline-agenda-create]").forEach((panel) => {
-  panel.hidden = false;
   const titleInput = panel.querySelector("[data-inline-agenda-title]");
   const yearInput = panel.querySelector("[data-inline-agenda-fiscal-year]");
   const numberInput = panel.querySelector("[data-inline-agenda-number]");
@@ -342,6 +367,7 @@ document.querySelectorAll("[data-inline-agenda-create]").forEach((panel) => {
 
       titleInput.value = "";
       numberInput.value = "";
+      activateSelectTab(panel);
     } catch {
       showError("通信エラーが発生しました");
     } finally {

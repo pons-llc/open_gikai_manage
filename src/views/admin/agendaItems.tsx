@@ -48,21 +48,24 @@ export const emptyAgendaItemForm: AgendaItemFormValues = {
   published_at_local: "",
 };
 
-export const AgendaItemsPage: FC<{
+/**
+ * 一覧が長くなるとスクロールが必要になり、「編集」を押しても反映がすぐ見えず分かりにくいため、
+ * 日程管理と同様に一覧と登録・編集フォームを別画面に分離する。
+ */
+export const AgendaItemsListPage: FC<{
   rows: AgendaItemRow[];
   years: number[];
   filter: { year: string; category: string; sort: AgendaItemSort };
-  agendaTypes: SelectOption[];
-  committees: SelectOption[];
-  form: AgendaItemFormValues;
-  errors: string[];
-  editingId: number | null;
-  documents: AgendaItemDocumentRow[];
-}> = ({ rows, years, filter, agendaTypes, committees, form, errors, editingId, documents }) => (
+}> = ({ rows, years, filter }) => (
   <>
     <div class="admin-header-note">公開サイトへの反映には最大30分かかります(design.md §9.1)。</div>
 
     <AdminSection title="議題一覧">
+      <p>
+        <a href="/admin/agenda-items/new" class="button button--primary">
+          新しい議題を登録
+        </a>
+      </p>
       <form method="get" class="search-form">
         <label>
           年度
@@ -136,6 +139,21 @@ export const AgendaItemsPage: FC<{
         </table>
       )}
     </AdminSection>
+  </>
+);
+
+export const AgendaItemFormPage: FC<{
+  agendaTypes: SelectOption[];
+  committees: SelectOption[];
+  form: AgendaItemFormValues;
+  errors: string[];
+  editingId: number | null;
+  documents: AgendaItemDocumentRow[];
+}> = ({ agendaTypes, committees, form, errors, editingId, documents }) => (
+  <>
+    <p>
+      <a href="/admin/agenda-items">議題一覧に戻る</a>
+    </p>
 
     <AdminSection title={editingId ? "議題を編集" : "議題を登録"}>
       <ErrorList errors={errors} />

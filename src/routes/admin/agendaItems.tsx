@@ -8,7 +8,8 @@ import { agendaItemSchema, AGENDA_ITEM_SORTS, isAgendaItemSort, type AgendaItemS
 import { datetimeLocalToDb, dbToDatetimeLocal } from "../../validators/announcements";
 import { Layout } from "../../views/layout";
 import {
-  AgendaItemsPage,
+  AgendaItemFormPage,
+  AgendaItemsListPage,
   emptyAgendaItemForm,
   type AgendaItemFormValues,
   type AgendaItemRow,
@@ -82,28 +83,41 @@ const toSchemaInput = (form: AgendaItemFormValues) => ({
   published_at: datetimeLocalToDb(form.published_at_local),
 });
 
-const render = async (
+/**
+ * 一覧が長くスクロールを要すると、編集リンクを押しても反映が画面外で分かりにくいため、
+ * 日程管理と同様に一覧(GET /)と登録・編集フォーム(GET /new, GET /:id/edit)を別画面に分離する。
+ */
+const renderList = async (
+  c: Context<AppEnv>,
+  flash: FlashKind | undefined,
+  filter: { year: string; category: string; sort: AgendaItemSort }
+) => {
+  const [rows, years] = await Promise.all([
+    listAgendaItems(c.env.DB, filter.year, filter.category, filter.sort),
+    listFiscalYears(c.env.DB),
+  ]);
+  return c.html(
+    <Layout title="議題管理" variant="admin" adminEmail={c.get("adminEmail")} flash={flash}>
+      <AgendaItemsListPage rows={rows} years={years} filter={filter} />
+    </Layout>
+  );
+};
+
+const renderForm = async (
   c: Context<AppEnv>,
   form: AgendaItemFormValues,
   errors: string[],
   editingId: number | null,
-  status: 200 | 400 = 200,
-  flash?: FlashKind,
-  filter: { year: string; category: string; sort: AgendaItemSort } = { year: "", category: "", sort: "fiscal_year_desc" }
+  status: 200 | 400 = 200
 ) => {
-  const [rows, years, agendaTypes, committees, documents] = await Promise.all([
-    listAgendaItems(c.env.DB, filter.year, filter.category, filter.sort),
-    listFiscalYears(c.env.DB),
+  const [agendaTypes, committees, documents] = await Promise.all([
     listAgendaTypeOptions(c.env.DB),
     listCommitteeOptions(c.env.DB),
     editingId ? listAgendaItemDocuments(c.env.DB, editingId) : Promise.resolve([]),
   ]);
   return c.html(
-    <Layout title="議題管理" variant="admin" adminEmail={c.get("adminEmail")} flash={flash}>
-      <AgendaItemsPage
-        rows={rows}
-        years={years}
-        filter={filter}
+    <Layout title={editingId ? "議題を編集" : "議題を登録"} variant="admin" adminEmail={c.get("adminEmail")}>
+      <AgendaItemFormPage
         agendaTypes={agendaTypes}
         committees={committees}
         form={form}
@@ -116,17 +130,19 @@ const render = async (
   );
 };
 
-/**
- * P1-2: 同年度の議題を続けて登録する場合に年度・種類を引き継ぐ。
- * P1-4: 一覧の絞り込みも同じ `fiscal_year` / `category` クエリを使う(絞り込んだ文脈のまま新規登録に入れる)。
- */
+/** P1-4: 一覧の絞り込み・並べ替え(GET フォーム、JS 不要)。 */
 agendaItemsRoute.get("/", async (c) => {
   const year = c.req.query("fiscal_year") ?? "";
   const category = c.req.query("category") ?? "";
   const sortRaw = c.req.query("sort") ?? "";
   const sort = isAgendaItemSort(sortRaw) ? sortRaw : "fiscal_year_desc";
+  return renderList(c, getFlash(c), { year, category, sort });
+});
+
+/** P1-2: 同年度の議題を続けて登録する場合に年度・種類を引き継ぐ。 */
+agendaItemsRoute.get("/new", async (c) => {
   const form = formFromQuery(emptyAgendaItemForm, c.req.query(), ["fiscal_year", "category"]);
-  return render(c, form, [], null, 200, getFlash(c), { year, category, sort });
+  return renderForm(c, form, [], null);
 });
 
 agendaItemsRoute.get("/:id/edit", async (c) => {
@@ -147,7 +163,7 @@ agendaItemsRoute.get("/:id/edit", async (c) => {
       published_at: string;
     }>();
   if (!row) return c.notFound();
-  return render(
+  return renderForm(
     c,
     {
       title: row.title,
@@ -168,11 +184,11 @@ agendaItemsRoute.post("/", async (c) => {
   const form = readForm(rawForm);
   const result = await createAgendaItem(c, toSchemaInput(form));
   if (!result.ok) {
-    return render(c, form, result.errors, null, 400);
+    return renderForm(c, form, result.errors, null, 400);
   }
   if (str(rawForm, "save_mode") === "continue") {
     return c.redirect(
-      withFlash("/admin/agenda-items", "created", {
+      withFlash("/admin/agenda-items/new", "created", {
         fiscal_year: String(result.fiscal_year),
         category: result.category,
       })
@@ -186,7 +202,7 @@ agendaItemsRoute.post("/:id", async (c) => {
   const form = readForm(await c.req.parseBody());
   const parsed = agendaItemSchema.safeParse(toSchemaInput(form));
   if (!parsed.success) {
-    return render(c, form, parsed.error.issues.map((i) => i.message), id, 400);
+    return renderForm(c, form, parsed.error.issues.map((i) => i.message), id, 400);
   }
   try {
     const result = await c.env.DB.prepare(
@@ -208,7 +224,7 @@ agendaItemsRoute.post("/:id", async (c) => {
     if (result.meta.changes === 0) return c.notFound();
     logAdminMutation(c, "agenda_items", id, "update");
   } catch {
-    return render(c, form, ["この年度・種類の番号は既に使用されています"], id, 400);
+    return renderForm(c, form, ["この年度・種類の番号は既に使用されています"], id, 400);
   }
   return c.redirect(withFlash("/admin/agenda-items", "updated"));
 });
