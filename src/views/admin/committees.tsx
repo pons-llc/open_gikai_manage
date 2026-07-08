@@ -53,7 +53,7 @@ export const CommitteesPage: FC<{
                 <td>{r.display_order}</td>
                 <td>{r.is_active ? "有効" : "廃止"}</td>
                 <td class="actions">
-                  <a href={`/admin/committees/${r.id}/edit`}>編集</a>{" "}
+                  <a href={`/admin/committees/${r.id}`}>詳細</a>{" "}
                   <DeleteForm action={`/admin/committees/${r.id}/delete`} />
                 </td>
               </tr>

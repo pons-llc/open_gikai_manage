@@ -3,6 +3,7 @@ import type { AppEnv } from "../../env";
 import { logAdminMutation } from "../../lib/auditLog";
 import { checkboxOn, formFromQuery, str, type ParsedForm } from "../../lib/forms";
 import { getFlash, withFlash, type FlashKind } from "../../lib/flash";
+import { createCommitteeMembership, createFactionMembership, endCommitteeMembership, endFactionMembership } from "../../lib/memberships";
 import { memberSchema } from "../../validators/members";
 import { Layout } from "../../views/layout";
 import {
@@ -11,6 +12,12 @@ import {
   type MemberFormValues,
   type MemberRow,
 } from "../../views/admin/members";
+import {
+  MemberHubPage,
+  type MemberHubCommitteeRow,
+  type MemberHubFactionRow,
+} from "../../views/admin/memberHub";
+import type { SelectOption } from "../../views/admin/committeeMemberships";
 
 export const membersRoute = new Hono<AppEnv>();
 
@@ -28,6 +35,85 @@ const readForm = (form: ParsedForm): MemberFormValues => ({
   seat_number: str(form, "seat_number") || "1",
   is_active: checkboxOn(form, "is_active"),
 });
+
+const loadMember = (DB: D1Database, id: number) =>
+  DB.prepare(`SELECT id, name, election_count, elected_on, seat_number, is_active FROM members WHERE id = ?`)
+    .bind(id)
+    .first<MemberRow>();
+
+const listMemberFactionMemberships = (DB: D1Database, memberId: number) =>
+  DB.prepare(
+    `SELECT fm.id, fm.faction_id, f.name AS faction_name, fm.term_start, fm.term_end
+     FROM faction_memberships fm JOIN factions f ON f.id = fm.faction_id
+     WHERE fm.member_id = ? ORDER BY fm.term_start DESC, fm.id DESC`
+  )
+    .bind(memberId)
+    .all<MemberHubFactionRow>()
+    .then((r) => r.results);
+
+const listMemberCommitteeMemberships = (DB: D1Database, memberId: number) =>
+  DB.prepare(
+    `SELECT cm.id, cm.committee_id, c.name AS committee_name, cm.role, cm.term_start, cm.term_end
+     FROM committee_memberships cm JOIN committees c ON c.id = cm.committee_id
+     WHERE cm.member_id = ? ORDER BY cm.term_start DESC, cm.id DESC`
+  )
+    .bind(memberId)
+    .all<MemberHubCommitteeRow>()
+    .then((r) => r.results);
+
+const listFactionOptions = (DB: D1Database) =>
+  DB.prepare(`SELECT id, name FROM factions ORDER BY established_on ASC, id ASC`)
+    .all<SelectOption>()
+    .then((r) => r.results);
+
+const listCommitteeOptions = (DB: D1Database) =>
+  DB.prepare(`SELECT id, name FROM committees WHERE is_active = 1 ORDER BY display_order ASC, id ASC`)
+    .all<SelectOption>()
+    .then((r) => r.results);
+
+/** P2-1: 議員詳細ハブ。基本情報フォーム+会派所属・委員会所属の履歴とその場追加フォームを1画面に描画する。 */
+const renderMemberHub = async (
+  c: Context<AppEnv>,
+  memberId: number,
+  options: {
+    memberErrors?: string[];
+    factionErrors?: string[];
+    committeeErrors?: string[];
+    status?: 200 | 400;
+    flash?: FlashKind;
+  } = {}
+) => {
+  const member = await loadMember(c.env.DB, memberId);
+  if (!member) return c.notFound();
+  const [factionMemberships, committeeMemberships, factions, committees] = await Promise.all([
+    listMemberFactionMemberships(c.env.DB, memberId),
+    listMemberCommitteeMemberships(c.env.DB, memberId),
+    listFactionOptions(c.env.DB),
+    listCommitteeOptions(c.env.DB),
+  ]);
+  return c.html(
+    <Layout title={`議員: ${member.name}`} variant="admin" adminEmail={c.get("adminEmail")} flash={options.flash}>
+      <MemberHubPage
+        member={member}
+        form={{
+          name: member.name,
+          election_count: String(member.election_count),
+          elected_on: member.elected_on,
+          seat_number: String(member.seat_number),
+          is_active: !!member.is_active,
+        }}
+        errors={options.memberErrors ?? []}
+        factionMemberships={factionMemberships}
+        committeeMemberships={committeeMemberships}
+        factions={factions}
+        committees={committees}
+        factionErrors={options.factionErrors ?? []}
+        committeeErrors={options.committeeErrors ?? []}
+      />
+    </Layout>,
+    options.status ?? 200
+  );
+};
 
 const render = async (
   c: Context<AppEnv>,
@@ -72,6 +158,57 @@ membersRoute.get("/:id/edit", async (c) => {
     [],
     id
   );
+});
+
+/** P2-1: 議員詳細ハブ。議員一覧の「編集」リンクはここへ変更する。 */
+membersRoute.get("/:id", async (c) => {
+  const id = Number(c.req.param("id"));
+  return renderMemberHub(c, id, { flash: getFlash(c) });
+});
+
+membersRoute.post("/:id/faction-memberships", async (c) => {
+  const memberId = Number(c.req.param("id"));
+  const form = await c.req.parseBody();
+  const result = await createFactionMembership(c, {
+    faction_id: Number(str(form, "faction_id")) || 0,
+    member_id: memberId,
+    term_start: str(form, "term_start"),
+    term_end: null,
+  });
+  if (!result.ok) {
+    return renderMemberHub(c, memberId, { factionErrors: result.errors, status: 400 });
+  }
+  return c.redirect(withFlash(`/admin/members/${memberId}`, "created"));
+});
+
+membersRoute.post("/:id/faction-memberships/:mid/end", async (c) => {
+  const memberId = Number(c.req.param("id"));
+  const mid = Number(c.req.param("mid"));
+  await endFactionMembership(c, mid, memberId);
+  return c.redirect(withFlash(`/admin/members/${memberId}`, "updated"));
+});
+
+membersRoute.post("/:id/committee-memberships", async (c) => {
+  const memberId = Number(c.req.param("id"));
+  const form = await c.req.parseBody();
+  const result = await createCommitteeMembership(c, {
+    committee_id: Number(str(form, "committee_id")) || 0,
+    member_id: memberId,
+    role: str(form, "role") || "member",
+    term_start: str(form, "term_start"),
+    term_end: null,
+  });
+  if (!result.ok) {
+    return renderMemberHub(c, memberId, { committeeErrors: result.errors, status: 400 });
+  }
+  return c.redirect(withFlash(`/admin/members/${memberId}`, "created"));
+});
+
+membersRoute.post("/:id/committee-memberships/:mid/end", async (c) => {
+  const memberId = Number(c.req.param("id"));
+  const mid = Number(c.req.param("mid"));
+  await endCommitteeMembership(c, mid, { memberId });
+  return c.redirect(withFlash(`/admin/members/${memberId}`, "updated"));
 });
 
 membersRoute.post("/", async (c) => {
@@ -137,7 +274,7 @@ membersRoute.post("/:id", async (c) => {
     .run();
   if (result.meta.changes === 0) return c.notFound();
   logAdminMutation(c, "members", id, "update");
-  return c.redirect(withFlash("/admin/members", "updated"));
+  return c.redirect(withFlash(`/admin/members/${id}`, "updated"));
 });
 
 membersRoute.post("/:id/delete", async (c) => {

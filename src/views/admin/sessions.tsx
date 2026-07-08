@@ -43,7 +43,7 @@ export const SessionsPage: FC<{
                 <td>{r.start_date}</td>
                 <td>{r.end_date}</td>
                 <td class="actions">
-                  <a href={`/admin/sessions/${r.id}/edit`}>編集</a>{" "}
+                  <a href={`/admin/sessions/${r.id}`}>詳細</a>{" "}
                   <DeleteForm action={`/admin/sessions/${r.id}/delete`} />
                 </td>
               </tr>

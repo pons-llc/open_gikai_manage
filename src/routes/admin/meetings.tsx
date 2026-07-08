@@ -2,7 +2,7 @@ import { Hono, type Context } from "hono";
 import type { AppEnv } from "../../env";
 import { logAdminMutation } from "../../lib/auditLog";
 import { wouldCreateCycle } from "../../lib/meetings";
-import { idList, str, type ParsedForm } from "../../lib/forms";
+import { formFromQuery, idList, str, type ParsedForm } from "../../lib/forms";
 import { getFlash, withFlash } from "../../lib/flash";
 import { meetingSchema } from "../../validators/meetings";
 import { Layout } from "../../views/layout";
@@ -227,7 +227,11 @@ meetingsRoute.get("/", async (c) => {
   );
 });
 
-meetingsRoute.get("/new", async (c) => render(c, emptyMeetingForm, [], null));
+/** P2-3: 定例会ハブの「この定例会に日程を追加」から regular_session_id を引き継いで選び直す手間をなくす。 */
+meetingsRoute.get("/new", async (c) => {
+  const form = formFromQuery(emptyMeetingForm, c.req.query(), ["regular_session_id"]);
+  return render(c, form, [], null);
+});
 
 meetingsRoute.get("/:id/edit", async (c) => {
   const id = Number(c.req.param("id"));
