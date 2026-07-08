@@ -100,6 +100,134 @@ document.querySelectorAll("form[data-meeting-form]").forEach((form) => {
   syncFieldVisibility();
 });
 
+// P3-1: 日程フォームの議題・資料チェックリストのインクリメンタル絞り込み(client-side, fetch不要)。
+// チェック済み行は絞り込みに関係なく常に表示する。JS無効時は現状どおり全件表示のまま。
+document.querySelectorAll("[data-filter-list]").forEach((list) => {
+  const key = list.getAttribute("data-filter-list");
+  const input = document.querySelector(`[data-filter-input="${key}"]`);
+  if (!input) return;
+  input.addEventListener("input", () => {
+    const term = input.value.trim().toLowerCase();
+    list.querySelectorAll("[data-filter-row]").forEach((row) => {
+      const checkbox = row.querySelector('input[type="checkbox"]');
+      const checked = !!checkbox && checkbox.checked;
+      const matches = term === "" || row.textContent.toLowerCase().includes(term);
+      row.style.display = checked || matches ? "" : "none";
+    });
+    if (term !== "") {
+      list.querySelectorAll("details").forEach((details) => {
+        details.open = true;
+      });
+    }
+  });
+});
+
+// P3-2: チェックを入れた時点で表示順が 0/空なら「現在のチェック済み最大値 + 1」を自動セットする。
+// 外したら 0 に戻す。手入力での上書きは従来どおり可能(数値 input は残るため JS 無効でも成立)。
+document.addEventListener("change", (e) => {
+  const checkbox = e.target.closest && e.target.closest("[data-order-checkbox]");
+  if (!checkbox) return;
+  const targetId = checkbox.getAttribute("data-order-target");
+  const orderInput = targetId && document.getElementById(targetId);
+  if (!orderInput) return;
+  if (!checkbox.checked) {
+    orderInput.value = "0";
+    return;
+  }
+  if ((Number(orderInput.value) || 0) !== 0) return;
+  const scope = checkbox.closest("[data-filter-list]") || document;
+  let max = 0;
+  scope.querySelectorAll("[data-order-checkbox]:checked").forEach((cb) => {
+    const otherId = cb.getAttribute("data-order-target");
+    const otherInput = otherId && document.getElementById(otherId);
+    if (otherInput) max = Math.max(max, Number(otherInput.value) || 0);
+  });
+  orderInput.value = String(max + 1);
+});
+
+// P3-3: 会議資料のその場アップロード。既存 POST /api/admin/documents(Accept: application/json)を再利用し、
+// 日程フォーム自体は未送信のまま、成功したらチェックリストに行を動的追加してチェック済み+表示順自動採番にする。
+document.querySelectorAll("[data-inline-upload]").forEach((panel) => {
+  panel.hidden = false;
+  const fileInput = panel.querySelector("[data-inline-upload-file]");
+  const agendaSelect = panel.querySelector("[data-inline-upload-agenda]");
+  const submitButton = panel.querySelector("[data-inline-upload-submit]");
+  const errorEl = panel.querySelector("[data-inline-upload-error]");
+  const list = document.querySelector('[data-filter-list="document"]');
+  if (!fileInput || !submitButton || !errorEl || !list) return;
+
+  const showError = (message) => {
+    errorEl.textContent = message;
+    errorEl.style.display = "";
+  };
+
+  submitButton.addEventListener("click", async () => {
+    errorEl.style.display = "none";
+    const file = fileInput.files && fileInput.files[0];
+    if (!file) {
+      showError("ファイルを選択してください");
+      return;
+    }
+    const formData = new FormData();
+    formData.append("file", file);
+    if (agendaSelect && agendaSelect.value) formData.append("agenda_item_id", agendaSelect.value);
+
+    submitButton.disabled = true;
+    try {
+      const res = await fetch("/api/admin/documents", {
+        method: "POST",
+        headers: { Accept: "application/json" },
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showError((data && data.error && data.error.message) || "アップロードに失敗しました");
+        return;
+      }
+
+      const emptyHint = list.querySelector("[data-document-empty-hint]");
+      if (emptyHint) emptyHint.remove();
+
+      const row = document.createElement("div");
+      row.className = "checkbox-list__row";
+      row.setAttribute("data-filter-row", "");
+
+      const label = document.createElement("label");
+      label.className = "checkbox-list__checkbox";
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.name = "document_ids";
+      checkbox.value = String(data.id);
+      checkbox.checked = true;
+      checkbox.setAttribute("data-order-checkbox", "");
+      checkbox.setAttribute("data-order-target", `document_order_${data.id}`);
+      label.appendChild(checkbox);
+      label.appendChild(document.createTextNode(" " + data.file_name));
+
+      const orderInput = document.createElement("input");
+      orderInput.type = "number";
+      orderInput.className = "checkbox-list__order";
+      orderInput.id = `document_order_${data.id}`;
+      orderInput.name = `document_order_${data.id}`;
+      orderInput.value = "0";
+      orderInput.setAttribute("data-order-input", "");
+      orderInput.setAttribute("aria-label", `${data.file_name} の表示順`);
+
+      row.appendChild(label);
+      row.appendChild(orderInput);
+      list.appendChild(row);
+      checkbox.dispatchEvent(new Event("change", { bubbles: true }));
+
+      fileInput.value = "";
+      if (agendaSelect) agendaSelect.value = "";
+    } catch {
+      showError("通信エラーが発生しました");
+    } finally {
+      submitButton.disabled = false;
+    }
+  });
+});
+
 // 賛否記録グリッド: 行(議題)の「全員○○」ボタンで、その行のセレクトを一括変更する(design.md §6.3)。
 // JS無効時はボタンが出ないだけで、セレクトを1つずつ選んで通常送信すれば同じ結果になる。
 document.querySelectorAll("[data-vote-row-fill] [data-vote-fill]").forEach((button) => {

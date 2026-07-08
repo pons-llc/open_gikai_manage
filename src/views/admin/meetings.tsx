@@ -48,6 +48,20 @@ export const emptyMeetingForm: MeetingFormValues = {
   document_orders: {},
 };
 
+/** P3-1: 議題チェックリストを年度で <details> グルーピングするための整形(既に fiscal_year DESC 順で来る前提)。 */
+const groupByFiscalYear = (items: AgendaItemOption[]): [number, AgendaItemOption[]][] => {
+  const groups: [number, AgendaItemOption[]][] = [];
+  for (const item of items) {
+    const last = groups[groups.length - 1];
+    if (last && last[0] === item.fiscal_year) {
+      last[1].push(item);
+    } else {
+      groups.push([item.fiscal_year, [item]]);
+    }
+  }
+  return groups;
+};
+
 const meetingLabel = (r: MeetingRow) => (r.meeting_type === "committee" ? (r.committee_name ?? "委員会") : "本会議");
 const startLabel = (r: MeetingRow) => (r.start_type === "fixed" ? r.start_time : "前の会議終了後");
 
@@ -213,58 +227,113 @@ export const MeetingFormPage: FC<{
 
       <div class="field">
         <span class="field-legend">この会議の議題</span>
-        <div class="checkbox-list">
-          {agendaItems.length === 0 ? (
-            <p class="hint">登録された議題がありません。</p>
-          ) : (
-            agendaItems.map((a) => (
-              <div class="checkbox-list__row">
-                <label class="checkbox-list__checkbox">
-                  <input
-                    type="checkbox"
-                    name="agenda_item_ids"
-                    value={a.id}
-                    checked={form.agenda_item_ids.includes(a.id)}
-                  />
-                  {a.fiscal_year}年度 {agendaItemCategoryLabels[a.category as keyof typeof agendaItemCategoryLabels] ?? a.category} {a.title}
-                </label>
-                <input
-                  type="number"
-                  class="checkbox-list__order"
-                  name={`agenda_item_order_${a.id}`}
-                  value={form.agenda_item_orders[a.id] ?? "0"}
-                  aria-label={`${a.title} の表示順`}
-                />
-              </div>
-            ))
-          )}
-        </div>
+        {agendaItems.length === 0 ? (
+          <p class="hint">登録された議題がありません。</p>
+        ) : (
+          <>
+            <div class="field-filter">
+              <input type="text" data-filter-input="agenda" placeholder="議題名で絞り込み" />
+            </div>
+            <div class="checkbox-list" data-filter-list="agenda">
+              {groupByFiscalYear(agendaItems).map(([year, items], groupIndex) => (
+                <details open={groupIndex === 0}>
+                  <summary>{year}年度</summary>
+                  {items.map((a) => (
+                    <div class="checkbox-list__row" data-filter-row>
+                      <label class="checkbox-list__checkbox">
+                        <input
+                          type="checkbox"
+                          name="agenda_item_ids"
+                          value={a.id}
+                          checked={form.agenda_item_ids.includes(a.id)}
+                          data-order-checkbox
+                          data-order-target={`agenda_item_order_${a.id}`}
+                        />
+                        {a.fiscal_year}年度 {agendaItemCategoryLabels[a.category as keyof typeof agendaItemCategoryLabels] ?? a.category} {a.title}
+                      </label>
+                      <input
+                        type="number"
+                        class="checkbox-list__order"
+                        id={`agenda_item_order_${a.id}`}
+                        name={`agenda_item_order_${a.id}`}
+                        value={form.agenda_item_orders[a.id] ?? "0"}
+                        aria-label={`${a.title} の表示順`}
+                        data-order-input
+                      />
+                    </div>
+                  ))}
+                </details>
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
       <div class="field">
         <span class="field-legend">会議資料(次第・会議録など議題非依存)</span>
-        <div class="checkbox-list">
+        {documents.length > 0 && (
+          <div class="field-filter">
+            <input type="text" data-filter-input="document" placeholder="ファイル名で絞り込み" />
+          </div>
+        )}
+        <div class="checkbox-list" data-filter-list="document">
           {documents.length === 0 ? (
-            <p class="hint">
-              登録された資料がありません。<a href="/admin/documents">資料管理</a>からアップロードできます。
+            <p class="hint" data-document-empty-hint>
+              登録された資料がありません。
             </p>
           ) : (
             documents.map((d) => (
-              <div class="checkbox-list__row">
+              <div class="checkbox-list__row" data-filter-row>
                 <label class="checkbox-list__checkbox">
-                  <input type="checkbox" name="document_ids" value={d.id} checked={form.document_ids.includes(d.id)} />
+                  <input
+                    type="checkbox"
+                    name="document_ids"
+                    value={d.id}
+                    checked={form.document_ids.includes(d.id)}
+                    data-order-checkbox
+                    data-order-target={`document_order_${d.id}`}
+                  />
                   {d.file_name}
                 </label>
                 <input
                   type="number"
                   class="checkbox-list__order"
+                  id={`document_order_${d.id}`}
                   name={`document_order_${d.id}`}
                   value={form.document_orders[d.id] ?? "0"}
                   aria-label={`${d.file_name} の表示順`}
+                  data-order-input
                 />
               </div>
             ))
           )}
+        </div>
+        <noscript>
+          <p class="hint">
+            <a href="/admin/documents">資料管理</a>からアップロードできます。
+          </p>
+        </noscript>
+        <div class="inline-upload" data-inline-upload hidden>
+          <p class="hint">ここでアップロードすると、フォームを送信せずにチェックリストへ追加できます。</p>
+          <div class="field">
+            <label for="inline-upload-file">ファイル</label>
+            <input type="file" id="inline-upload-file" data-inline-upload-file />
+          </div>
+          <div class="field">
+            <label for="inline-upload-agenda">議題(任意)</label>
+            <select id="inline-upload-agenda" data-inline-upload-agenda>
+              <option value="">選択なし</option>
+              {agendaItems.map((a) => (
+                <option value={a.id}>
+                  {a.fiscal_year}年度 {a.title}
+                </option>
+              ))}
+            </select>
+          </div>
+          <button type="button" class="button button--secondary" data-inline-upload-submit>
+            ここでアップロード
+          </button>
+          <p class="hint" data-inline-upload-error style="display: none; color: var(--color-error-red-900);"></p>
         </div>
       </div>
 
