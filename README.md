@@ -8,7 +8,7 @@
 
 設計の詳細・意思決定の経緯は [docs/design.md](docs/design.md) を参照してください。元になった要件メモは [idea.md](idea.md) です。
 
-セットアップせずに見た目だけ確認したい場合は、ダミーデータの[静的デモページ](demo/index.html)をブラウザで開いてください(`demo/index.html` を直接開くか、`npx serve demo` などで配信できます)。
+セットアップせずに見た目だけ確認したい場合は、ダミーデータの[静的デモページ](https://open-gikai-demo.pages.dev)を見てください(ソースは `demo/` 配下。`main` への push で Cloudflare Pages に自動デプロイされます)。
 
 ## 技術スタック
 
