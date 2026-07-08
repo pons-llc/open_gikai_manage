@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import type { AppEnv } from "../../env";
 import { logAdminMutation } from "../../lib/auditLog";
 import { getStorageUsageBytes } from "../../lib/storage";
+import { getFlash, withFlash } from "../../lib/flash";
 import { Layout } from "../../views/layout";
 import { DocumentsPage, type DocumentRow } from "../../views/admin/documents";
 import type { SelectOption } from "../../views/admin/committeeMemberships";
@@ -30,7 +31,7 @@ documentsRoute.get("/", async (c) => {
     getStorageUsageBytes(c.env.DB),
   ]);
   return c.html(
-    <Layout title="資料管理" variant="admin" adminEmail={c.get("adminEmail")}>
+    <Layout title="資料管理" variant="admin" adminEmail={c.get("adminEmail")} flash={getFlash(c)}>
       <DocumentsPage
         rows={rows}
         agendaItems={agendaItems}
@@ -51,5 +52,5 @@ documentsRoute.post("/:id/delete", async (c) => {
   await c.env.BUCKET.delete(row.r2_key);
   await c.env.DB.prepare(`DELETE FROM documents WHERE id = ?`).bind(id).run();
   logAdminMutation(c, "documents", id, "delete");
-  return c.redirect("/admin/documents");
+  return c.redirect(withFlash("/admin/documents", "deleted"));
 });

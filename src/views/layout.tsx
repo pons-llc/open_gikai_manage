@@ -1,4 +1,6 @@
 import type { FC, PropsWithChildren } from "hono/jsx";
+import { FlashBanner } from "./admin/shared";
+import type { FlashKind } from "../lib/flash";
 
 const PUBLIC_NAV = [
   { href: "/meetings", label: "日程" },
@@ -8,20 +10,36 @@ const PUBLIC_NAV = [
   { href: "/news", label: "お知らせ" },
 ];
 
-const ADMIN_NAV = [
-  { href: "/admin", label: "ダッシュボード" },
-  { href: "/admin/meetings", label: "日程" },
-  { href: "/admin/committees", label: "委員会" },
-  { href: "/admin/sessions", label: "定例会" },
-  { href: "/admin/agenda-types", label: "議案種別" },
-  { href: "/admin/members", label: "議員" },
-  { href: "/admin/memberships", label: "委員会所属" },
-  { href: "/admin/factions", label: "会派" },
-  { href: "/admin/faction-memberships", label: "会派所属" },
-  { href: "/admin/announcements", label: "お知らせ" },
-  { href: "/admin/agenda-items", label: "議題" },
-  { href: "/admin/documents", label: "資料" },
-  { href: "/admin/votes", label: "賛否記録" },
+/**
+ * P1-3: 「1テーブル=1画面」のフラットな並びをやめ、実務単位でグループ化する。
+ * 「委員会所属」「会派所属」はここから外す(P2 のハブ画面に吸収。既存 URL は維持するのでブックマークは壊れない)。
+ */
+const ADMIN_NAV_GROUPS: { label: string; items: { href: string; label: string }[] }[] = [
+  {
+    label: "会議運営",
+    items: [
+      { href: "/admin", label: "ダッシュボード" },
+      { href: "/admin/meetings", label: "日程" },
+      { href: "/admin/agenda-items", label: "議題" },
+      { href: "/admin/documents", label: "資料" },
+      { href: "/admin/votes", label: "賛否記録" },
+    ],
+  },
+  {
+    label: "議員・会派",
+    items: [
+      { href: "/admin/members", label: "議員" },
+      { href: "/admin/factions", label: "会派" },
+    ],
+  },
+  {
+    label: "議会マスタ",
+    items: [
+      { href: "/admin/committees", label: "委員会" },
+      { href: "/admin/sessions", label: "定例会" },
+      { href: "/admin/agenda-types", label: "議案種別" },
+    ],
+  },
 ];
 
 type LayoutProps = PropsWithChildren<{
@@ -29,6 +47,7 @@ type LayoutProps = PropsWithChildren<{
   siteName?: string;
   variant?: "public" | "admin";
   adminEmail?: string;
+  flash?: FlashKind;
 }>;
 
 export const Layout: FC<LayoutProps> = ({
@@ -36,9 +55,9 @@ export const Layout: FC<LayoutProps> = ({
   siteName = "○○市議会",
   variant = "public",
   adminEmail,
+  flash,
   children,
 }) => {
-  const nav = variant === "admin" ? ADMIN_NAV : PUBLIC_NAV;
   const headerTitle = variant === "admin" ? `${siteName} 管理画面` : siteName;
   return (
     <html lang="ja">
@@ -53,11 +72,31 @@ export const Layout: FC<LayoutProps> = ({
           <p class="site-header__title">{headerTitle}</p>
           <nav class="site-header__nav" aria-label="主要ナビゲーション">
             <ul>
-              {nav.map((item) => (
-                <li>
-                  <a href={item.href}>{item.label}</a>
-                </li>
-              ))}
+              {variant === "admin" ? (
+                <>
+                  {ADMIN_NAV_GROUPS.map((group) => (
+                    <li class="nav-group">
+                      <span class="nav-group__label">{group.label}</span>
+                      <ul class="nav-group__items">
+                        {group.items.map((item) => (
+                          <li>
+                            <a href={item.href}>{item.label}</a>
+                          </li>
+                        ))}
+                      </ul>
+                    </li>
+                  ))}
+                  <li>
+                    <a href="/admin/announcements">お知らせ</a>
+                  </li>
+                </>
+              ) : (
+                PUBLIC_NAV.map((item) => (
+                  <li>
+                    <a href={item.href}>{item.label}</a>
+                  </li>
+                ))
+              )}
               {adminEmail && (
                 <li class="site-header__logout">
                   <span>{adminEmail}</span>
@@ -71,7 +110,10 @@ export const Layout: FC<LayoutProps> = ({
             </ul>
           </nav>
         </header>
-        <main>{children}</main>
+        <main>
+          {variant === "admin" && <FlashBanner flash={flash} />}
+          {children}
+        </main>
         <footer class="site-footer">
           <p>{siteName} 議会事務局</p>
         </footer>

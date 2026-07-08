@@ -1,7 +1,8 @@
 import { Hono, type Context } from "hono";
 import type { AppEnv } from "../../env";
 import { logAdminMutation } from "../../lib/auditLog";
-import { str, type ParsedForm } from "../../lib/forms";
+import { formFromQuery, str, type ParsedForm } from "../../lib/forms";
+import { getFlash, withFlash, type FlashKind } from "../../lib/flash";
 import { factionMembershipSchema, termsOverlap } from "../../validators/factionMemberships";
 import { Layout } from "../../views/layout";
 import type { SelectOption } from "../../views/admin/committeeMemberships";
@@ -48,7 +49,8 @@ const render = async (
   form: FactionMembershipFormValues,
   errors: string[],
   editingId: number | null,
-  status: 200 | 400 = 200
+  status: 200 | 400 = 200,
+  flash?: FlashKind
 ) => {
   const [rows, factions, members] = await Promise.all([
     listMemberships(c.env.DB),
@@ -56,7 +58,7 @@ const render = async (
     listMemberOptions(c.env.DB),
   ]);
   return c.html(
-    <Layout title="会派所属管理" variant="admin" adminEmail={c.get("adminEmail")}>
+    <Layout title="会派所属管理" variant="admin" adminEmail={c.get("adminEmail")} flash={flash}>
       <FactionMembershipsPage
         rows={rows}
         factions={factions}
@@ -86,7 +88,11 @@ const checkOverlap = async (
   return results.some((r) => termsOverlap(termStart, termEnd, r.term_start, r.term_end));
 };
 
-factionMembershipsRoute.get("/", async (c) => render(c, emptyFactionMembershipForm, [], null));
+/** P1-2: 会派所属を10人分入れる場合、会派・所属開始日を引き継ぐ。 */
+factionMembershipsRoute.get("/", async (c) => {
+  const form = formFromQuery(emptyFactionMembershipForm, c.req.query(), ["faction_id", "term_start"]);
+  return render(c, form, [], null, 200, getFlash(c));
+});
 
 factionMembershipsRoute.get("/:id/edit", async (c) => {
   const id = Number(c.req.param("id"));
@@ -110,7 +116,8 @@ factionMembershipsRoute.get("/:id/edit", async (c) => {
 });
 
 factionMembershipsRoute.post("/", async (c) => {
-  const form = readForm(await c.req.parseBody());
+  const rawForm = await c.req.parseBody();
+  const form = readForm(rawForm);
   const parsed = factionMembershipSchema.safeParse({
     faction_id: Number(form.faction_id) || 0,
     member_id: Number(form.member_id) || 0,
@@ -130,7 +137,15 @@ factionMembershipsRoute.post("/", async (c) => {
     .bind(parsed.data.faction_id, parsed.data.member_id, parsed.data.term_start, parsed.data.term_end)
     .run();
   logAdminMutation(c, "faction_memberships", result.meta.last_row_id ?? null, "create");
-  return c.redirect("/admin/faction-memberships");
+  if (str(rawForm, "save_mode") === "continue") {
+    return c.redirect(
+      withFlash("/admin/faction-memberships", "created", {
+        faction_id: String(parsed.data.faction_id),
+        term_start: parsed.data.term_start,
+      })
+    );
+  }
+  return c.redirect(withFlash("/admin/faction-memberships", "created"));
 });
 
 factionMembershipsRoute.post("/:id", async (c) => {
@@ -156,12 +171,12 @@ factionMembershipsRoute.post("/:id", async (c) => {
     .run();
   if (result.meta.changes === 0) return c.notFound();
   logAdminMutation(c, "faction_memberships", id, "update");
-  return c.redirect("/admin/faction-memberships");
+  return c.redirect(withFlash("/admin/faction-memberships", "updated"));
 });
 
 factionMembershipsRoute.post("/:id/delete", async (c) => {
   const id = Number(c.req.param("id"));
   await c.env.DB.prepare(`DELETE FROM faction_memberships WHERE id = ?`).bind(id).run();
   logAdminMutation(c, "faction_memberships", id, "delete");
-  return c.redirect("/admin/faction-memberships");
+  return c.redirect(withFlash("/admin/faction-memberships", "deleted"));
 });

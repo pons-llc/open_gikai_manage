@@ -143,6 +143,11 @@ export const AgendaItemsPage: FC<{
         <button type="submit" class="button button--primary">
           {editingId ? "更新する" : "登録する"}
         </button>
+        {!editingId && (
+          <button type="submit" name="save_mode" value="continue" class="button button--secondary" style="margin-left: 0.5rem;">
+            登録して続けて入力
+          </button>
+        )}
         {editingId && (
           <a href="/admin/agenda-items" style="margin-left: 1rem;">
             キャンセル
