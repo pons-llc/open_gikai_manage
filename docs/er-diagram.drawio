@@ -1,0 +1,128 @@
+<mxfile host="app.diagrams.net" version="24.0.0">
+  <diagram id="er-open-gikai" name="ER図">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="1000" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="title" value="open_gikai ER図(D1 / SQLite, migrations/000*.sql 準拠)" style="text;html=1;fontSize=20;fontStyle=1;align=left;" vertex="1" parent="1">
+          <mxGeometry x="40" y="10" width="700" height="30" as="geometry" />
+        </mxCell>
+
+        <mxCell id="legend" value="&lt;b&gt;凡例&lt;/b&gt;&lt;br&gt;青: マスタ/コンテンツ&lt;br&gt;灰: 中間(多対多)テーブル&lt;br&gt;赤: 認証(0002_auth.sql)&lt;br&gt;緑: 独立テーブル" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;fillColor=#ffffff;strokeColor=#666666;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1160" y="60" width="200" height="110" as="geometry" />
+        </mxCell>
+
+        <!-- Row 1 -->
+        <mxCell id="committees" value="&lt;b&gt;&lt;u&gt;committees&lt;/u&gt;&lt;/b&gt;(委員会)&lt;br&gt;id (PK)&lt;br&gt;name&lt;br&gt;category&lt;br&gt;display_order&lt;br&gt;is_active" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="40" y="60" width="240" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="regular_sessions" value="&lt;b&gt;&lt;u&gt;regular_sessions&lt;/u&gt;&lt;/b&gt;(定例会)&lt;br&gt;id (PK)&lt;br&gt;name&lt;br&gt;start_date&lt;br&gt;end_date" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="320" y="60" width="240" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="agenda_types" value="&lt;b&gt;&lt;u&gt;agenda_types&lt;/u&gt;&lt;/b&gt;(議案種別)&lt;br&gt;id (PK)&lt;br&gt;name&lt;br&gt;display_order" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="600" y="60" width="240" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="admin_users" value="&lt;b&gt;&lt;u&gt;admin_users&lt;/u&gt;&lt;/b&gt;(管理者)&lt;br&gt;id (PK)&lt;br&gt;email&lt;br&gt;password_hash" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="880" y="60" width="240" height="110" as="geometry" />
+        </mxCell>
+
+        <!-- Row 2 -->
+        <mxCell id="agenda_items" value="&lt;b&gt;&lt;u&gt;agenda_items&lt;/u&gt;&lt;/b&gt;(議題)&lt;br&gt;id (PK)&lt;br&gt;title&lt;br&gt;fiscal_year&lt;br&gt;number&lt;br&gt;category&lt;br&gt;agenda_type_id (FK)&lt;br&gt;committee_id (FK)&lt;br&gt;published_at" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="40" y="300" width="240" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="documents" value="&lt;b&gt;&lt;u&gt;documents&lt;/u&gt;&lt;/b&gt;(資料/R2メタデータ)&lt;br&gt;id (PK)&lt;br&gt;r2_key&lt;br&gt;file_name&lt;br&gt;file_size&lt;br&gt;extension&lt;br&gt;content_type&lt;br&gt;agenda_item_id (FK, 任意)" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="320" y="300" width="240" height="180" as="geometry" />
+        </mxCell>
+        <mxCell id="meetings" value="&lt;b&gt;&lt;u&gt;meetings&lt;/u&gt;&lt;/b&gt;(日程)&lt;br&gt;id (PK)&lt;br&gt;meeting_type&lt;br&gt;committee_id (FK, 任意)&lt;br&gt;regular_session_id (FK, 任意)&lt;br&gt;date&lt;br&gt;start_type&lt;br&gt;start_time&lt;br&gt;previous_meeting_id (FK, 自己参照)&lt;br&gt;schedule_text" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="600" y="300" width="240" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="admin_sessions" value="&lt;b&gt;&lt;u&gt;admin_sessions&lt;/u&gt;&lt;/b&gt;(セッション)&lt;br&gt;token_hash (PK)&lt;br&gt;admin_user_id (FK)&lt;br&gt;expires_at" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="880" y="300" width="240" height="110" as="geometry" />
+        </mxCell>
+
+        <!-- Row 3 -->
+        <mxCell id="meeting_agenda_items" value="&lt;b&gt;&lt;u&gt;meeting_agenda_items&lt;/u&gt;&lt;/b&gt;(会議-議題)&lt;br&gt;meeting_id (PK, FK)&lt;br&gt;agenda_item_id (PK, FK)&lt;br&gt;display_order" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;fillColor=#f5f5f5;strokeColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="40" y="580" width="240" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="meeting_documents" value="&lt;b&gt;&lt;u&gt;meeting_documents&lt;/u&gt;&lt;/b&gt;(会議-資料)&lt;br&gt;meeting_id (PK, FK)&lt;br&gt;document_id (PK, FK)&lt;br&gt;display_order" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;fillColor=#f5f5f5;strokeColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="320" y="580" width="240" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="agenda_item_votes" value="&lt;b&gt;&lt;u&gt;agenda_item_votes&lt;/u&gt;&lt;/b&gt;(賛否記録)&lt;br&gt;id (PK)&lt;br&gt;meeting_id (FK, 複合)&lt;br&gt;agenda_item_id (FK, 複合)&lt;br&gt;member_id (FK)&lt;br&gt;vote_result" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="600" y="580" width="240" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="announcements" value="&lt;b&gt;&lt;u&gt;announcements&lt;/u&gt;&lt;/b&gt;(お知らせ、独立)&lt;br&gt;id (PK)&lt;br&gt;subject&lt;br&gt;body&lt;br&gt;related_url&lt;br&gt;published_at" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="880" y="580" width="240" height="150" as="geometry" />
+        </mxCell>
+
+        <!-- Row 4 -->
+        <mxCell id="members" value="&lt;b&gt;&lt;u&gt;members&lt;/u&gt;&lt;/b&gt;(議員)&lt;br&gt;id (PK)&lt;br&gt;name&lt;br&gt;election_count&lt;br&gt;elected_on&lt;br&gt;seat_number&lt;br&gt;is_active" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="40" y="850" width="240" height="160" as="geometry" />
+        </mxCell>
+        <mxCell id="committee_memberships" value="&lt;b&gt;&lt;u&gt;committee_memberships&lt;/u&gt;&lt;/b&gt;(委員会所属)&lt;br&gt;id (PK)&lt;br&gt;committee_id (FK)&lt;br&gt;member_id (FK)&lt;br&gt;role&lt;br&gt;term_start&lt;br&gt;term_end" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="320" y="850" width="240" height="160" as="geometry" />
+        </mxCell>
+        <mxCell id="factions" value="&lt;b&gt;&lt;u&gt;factions&lt;/u&gt;&lt;/b&gt;(会派)&lt;br&gt;id (PK)&lt;br&gt;name&lt;br&gt;established_on&lt;br&gt;is_active" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="600" y="850" width="240" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="faction_memberships" value="&lt;b&gt;&lt;u&gt;faction_memberships&lt;/u&gt;&lt;/b&gt;(会派所属)&lt;br&gt;id (PK)&lt;br&gt;faction_id (FK)&lt;br&gt;member_id (FK)&lt;br&gt;term_start&lt;br&gt;term_end" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=6;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="880" y="850" width="240" height="150" as="geometry" />
+        </mxCell>
+
+        <!-- Edges -->
+        <mxCell id="e1" value="agenda_type_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=10;" edge="1" parent="1" source="agenda_types" target="agenda_items">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" value="committee_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=10;" edge="1" parent="1" source="committees" target="agenda_items">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" value="agenda_item_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=10;" edge="1" parent="1" source="agenda_items" target="documents">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" value="committee_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=10;" edge="1" parent="1" source="committees" target="meetings">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e5" value="regular_session_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=10;" edge="1" parent="1" source="regular_sessions" target="meetings">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e6" value="previous_meeting_id(自己参照)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=10;exitX=1;exitY=0.25;entryX=1;entryY=0.75;" edge="1" parent="1" source="meetings" target="meetings">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e7" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=10;" edge="1" parent="1" source="meetings" target="meeting_documents">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e8" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=10;" edge="1" parent="1" source="documents" target="meeting_documents">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e9" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=10;" edge="1" parent="1" source="meetings" target="meeting_agenda_items">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e10" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=10;" edge="1" parent="1" source="agenda_items" target="meeting_agenda_items">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e11" value="committee_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=10;" edge="1" parent="1" source="committees" target="committee_memberships">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e12" value="member_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=10;" edge="1" parent="1" source="members" target="committee_memberships">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e13" value="faction_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=10;" edge="1" parent="1" source="factions" target="faction_memberships">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e14" value="member_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=10;" edge="1" parent="1" source="members" target="faction_memberships">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e15" value="(meeting_id, agenda_item_id)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=10;" edge="1" parent="1" source="meeting_agenda_items" target="agenda_item_votes">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e16" value="member_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=10;" edge="1" parent="1" source="members" target="agenda_item_votes">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e17" value="admin_user_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=10;" edge="1" parent="1" source="admin_users" target="admin_sessions">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
