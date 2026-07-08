@@ -51,13 +51,49 @@ export const emptyMeetingForm: MeetingFormValues = {
 const meetingLabel = (r: MeetingRow) => (r.meeting_type === "committee" ? (r.committee_name ?? "委員会") : "本会議");
 const startLabel = (r: MeetingRow) => (r.start_type === "fixed" ? r.start_time : "前の会議終了後");
 
-export const MeetingsListPage: FC<{ rows: MeetingRow[] }> = ({ rows }) => (
+export const MeetingsListPage: FC<{
+  rows: MeetingRow[];
+  months: string[];
+  regularSessions: SelectOption[];
+  filter: { month: string; regularSessionId: string };
+}> = ({ rows, months, regularSessions, filter }) => (
   <AdminSection title="日程一覧" description="新規登録・チェーン登録は「新しい日程を登録」から行います。">
     <p>
       <a href="/admin/meetings/new" class="button button--primary">
         新しい日程を登録
       </a>
     </p>
+    <form method="get" class="search-form">
+      <label>
+        年月
+        <select name="month">
+          <option value="" selected={filter.month === ""}>
+            すべて
+          </option>
+          {months.map((m) => (
+            <option value={m} selected={m === filter.month}>
+              {m}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        定例会
+        <select name="regular_session_id">
+          <option value="" selected={filter.regularSessionId === ""}>
+            すべて
+          </option>
+          {regularSessions.map((s) => (
+            <option value={s.id} selected={String(s.id) === filter.regularSessionId}>
+              {s.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <button type="submit" class="button button--primary">
+        絞り込む
+      </button>
+    </form>
     {rows.length === 0 ? (
       <p>登録された日程はありません。</p>
     ) : (

@@ -20,17 +20,37 @@ import type { SelectOption } from "../../views/admin/committeeMemberships";
 
 export const meetingsRoute = new Hono<AppEnv>();
 
-const listMeetings = (DB: D1Database) =>
-  DB.prepare(
+/** P1-4: 年月・定例会での絞り込み(GET フォーム、JS 不要)。 */
+const listMeetings = (DB: D1Database, month: string, regularSessionId: string) => {
+  const conditions: string[] = [];
+  const binds: (string | number)[] = [];
+  if (month !== "") {
+    conditions.push("substr(m.date, 1, 7) = ?");
+    binds.push(month);
+  }
+  if (regularSessionId !== "") {
+    conditions.push("m.regular_session_id = ?");
+    binds.push(Number(regularSessionId));
+  }
+  const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+  return DB.prepare(
     `SELECT m.id, m.meeting_type, c.name AS committee_name, m.date, m.start_type, m.start_time,
             rs.name AS regular_session_name
      FROM meetings m
      LEFT JOIN committees c ON c.id = m.committee_id
      LEFT JOIN regular_sessions rs ON rs.id = m.regular_session_id
+     ${where}
      ORDER BY m.date DESC, m.id DESC`
   )
+    .bind(...binds)
     .all<MeetingRow>()
     .then((r) => r.results);
+};
+
+const listMeetingMonths = (DB: D1Database) =>
+  DB.prepare(`SELECT DISTINCT substr(date, 1, 7) AS month FROM meetings ORDER BY month DESC`)
+    .all<{ month: string }>()
+    .then((r) => r.results.map((row) => row.month));
 
 const listCommitteeOptions = (DB: D1Database) =>
   DB.prepare(`SELECT id, name FROM committees WHERE is_active = 1 ORDER BY display_order ASC, id ASC`)
@@ -188,10 +208,21 @@ const render = async (
 };
 
 meetingsRoute.get("/", async (c) => {
-  const rows = await listMeetings(c.env.DB);
+  const month = c.req.query("month") ?? "";
+  const regularSessionId = c.req.query("regular_session_id") ?? "";
+  const [rows, months, regularSessions] = await Promise.all([
+    listMeetings(c.env.DB, month, regularSessionId),
+    listMeetingMonths(c.env.DB),
+    listRegularSessionOptions(c.env.DB),
+  ]);
   return c.html(
     <Layout title="日程管理" variant="admin" adminEmail={c.get("adminEmail")} flash={getFlash(c)}>
-      <MeetingsListPage rows={rows} />
+      <MeetingsListPage
+        rows={rows}
+        months={months}
+        regularSessions={regularSessions}
+        filter={{ month, regularSessionId }}
+      />
     </Layout>
   );
 });
@@ -313,13 +344,17 @@ meetingsRoute.post("/:id/delete", async (c) => {
   try {
     await c.env.DB.prepare(`DELETE FROM meetings WHERE id = ?`).bind(id).run();
   } catch {
-    const rows = await listMeetings(c.env.DB);
+    const [rows, months, regularSessions] = await Promise.all([
+      listMeetings(c.env.DB, "", ""),
+      listMeetingMonths(c.env.DB),
+      listRegularSessionOptions(c.env.DB),
+    ]);
     return c.html(
       <Layout title="日程管理" variant="admin" adminEmail={c.get("adminEmail")}>
         <p class="error-banner" role="alert">
           この会議を「前の会議」として指定している会議があるため削除できません(先にその会議の設定を変更してください)。
         </p>
-        <MeetingsListPage rows={rows} />
+        <MeetingsListPage rows={rows} months={months} regularSessions={regularSessions} filter={{ month: "", regularSessionId: "" }} />
       </Layout>,
       400
     );

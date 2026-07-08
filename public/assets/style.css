@@ -459,7 +459,7 @@ section h2 {
   min-width: 6rem;
 }
 
-.admin-form .checkbox-field {
+.checkbox-field {
   display: flex;
   align-items: center;
   gap: var(--spacing-2);
