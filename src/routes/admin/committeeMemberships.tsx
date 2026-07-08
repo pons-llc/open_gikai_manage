@@ -3,7 +3,8 @@ import type { AppEnv } from "../../env";
 import { logAdminMutation } from "../../lib/auditLog";
 import { formFromQuery, str, type ParsedForm } from "../../lib/forms";
 import { getFlash, withFlash, type FlashKind } from "../../lib/flash";
-import { committeeMembershipSchema, termsOverlap } from "../../validators/committeeMemberships";
+import { checkCommitteeOverlap, createCommitteeMembership } from "../../lib/memberships";
+import { committeeMembershipSchema } from "../../validators/committeeMemberships";
 import { Layout } from "../../views/layout";
 import {
   CommitteeMembershipsPage,
@@ -73,23 +74,6 @@ const render = async (
   );
 };
 
-/** 同一議員×同一委員会の任期重複チェック(§8)。editingId は自分自身を除外するため。 */
-const checkOverlap = async (
-  DB: D1Database,
-  committeeId: number,
-  memberId: number,
-  termStart: string,
-  termEnd: string | null,
-  editingId: number | null
-): Promise<boolean> => {
-  const { results } = await DB.prepare(
-    `SELECT term_start, term_end FROM committee_memberships WHERE committee_id = ? AND member_id = ? AND id != ?`
-  )
-    .bind(committeeId, memberId, editingId ?? -1)
-    .all<{ term_start: string; term_end: string | null }>();
-  return results.some((r) => termsOverlap(termStart, termEnd, r.term_start, r.term_end));
-};
-
 /** P1-2: 委員会所属を続けて入力する場合、委員会・役職(=委員に戻す)・任期開始を引き継ぐ。 */
 committeeMembershipsRoute.get("/", async (c) => {
   const form = formFromQuery(emptyCommitteeMembershipForm, c.req.query(), ["committee_id", "role", "term_start"]);
@@ -121,40 +105,24 @@ committeeMembershipsRoute.get("/:id/edit", async (c) => {
 committeeMembershipsRoute.post("/", async (c) => {
   const rawForm = await c.req.parseBody();
   const form = readForm(rawForm);
-  const parsed = committeeMembershipSchema.safeParse({
+  const input = {
     committee_id: Number(form.committee_id) || 0,
     member_id: Number(form.member_id) || 0,
     role: form.role,
     term_start: form.term_start,
     term_end: form.term_end === "" ? null : form.term_end,
-  });
-  if (!parsed.success) {
-    return render(c, form, parsed.error.issues.map((i) => i.message), null, 400);
+  };
+  const result = await createCommitteeMembership(c, input);
+  if (!result.ok) {
+    return render(c, form, result.errors, null, 400);
   }
-  const overlap = await checkOverlap(
-    c.env.DB,
-    parsed.data.committee_id,
-    parsed.data.member_id,
-    parsed.data.term_start,
-    parsed.data.term_end,
-    null
-  );
-  if (overlap) {
-    return render(c, form, ["同じ議員がこの委員会に既に所属している期間と重複しています"], null, 400);
-  }
-  const result = await c.env.DB.prepare(
-    `INSERT INTO committee_memberships (committee_id, member_id, role, term_start, term_end) VALUES (?, ?, ?, ?, ?)`
-  )
-    .bind(parsed.data.committee_id, parsed.data.member_id, parsed.data.role, parsed.data.term_start, parsed.data.term_end)
-    .run();
-  logAdminMutation(c, "committee_memberships", result.meta.last_row_id ?? null, "create");
   if (str(rawForm, "save_mode") === "continue") {
     // §3-1: 連続登録では役職を都度選び直させず「委員」に戻す(委員長・副委員長は通常1人ずつのため)。
     return c.redirect(
       withFlash("/admin/memberships", "created", {
-        committee_id: String(parsed.data.committee_id),
+        committee_id: String(input.committee_id),
         role: "member",
-        term_start: parsed.data.term_start,
+        term_start: input.term_start,
       })
     );
   }
@@ -174,7 +142,7 @@ committeeMembershipsRoute.post("/:id", async (c) => {
   if (!parsed.success) {
     return render(c, form, parsed.error.issues.map((i) => i.message), id, 400);
   }
-  const overlap = await checkOverlap(
+  const overlap = await checkCommitteeOverlap(
     c.env.DB,
     parsed.data.committee_id,
     parsed.data.member_id,

@@ -57,7 +57,7 @@ export const MembersPage: FC<{
                 <td>{r.elected_on}</td>
                 <td>{r.is_active ? "現任" : "任期満了/辞職"}</td>
                 <td class="actions">
-                  <a href={`/admin/members/${r.id}/edit`}>編集</a>{" "}
+                  <a href={`/admin/members/${r.id}`}>詳細</a>{" "}
                   <DeleteForm action={`/admin/members/${r.id}/delete`} />
                 </td>
               </tr>

@@ -35,16 +35,49 @@ export const emptyAgendaItemForm: AgendaItemFormValues = {
 
 export const AgendaItemsPage: FC<{
   rows: AgendaItemRow[];
+  years: number[];
+  filter: { year: string; category: string };
   agendaTypes: SelectOption[];
   committees: SelectOption[];
   form: AgendaItemFormValues;
   errors: string[];
   editingId: number | null;
-}> = ({ rows, agendaTypes, committees, form, errors, editingId }) => (
+}> = ({ rows, years, filter, agendaTypes, committees, form, errors, editingId }) => (
   <>
     <div class="admin-header-note">公開サイトへの反映には最大30分かかります(design.md §9.1)。</div>
 
     <AdminSection title="議題一覧">
+      <form method="get" class="search-form">
+        <label>
+          年度
+          <select name="fiscal_year">
+            <option value="" selected={filter.year === ""}>
+              すべて
+            </option>
+            {years.map((y) => (
+              <option value={y} selected={String(y) === filter.year}>
+                {y}年度
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          種類
+          <select name="category">
+            <option value="" selected={filter.category === ""}>
+              すべて
+            </option>
+            {agendaItemCategories.map((c) => (
+              <option value={c} selected={c === filter.category}>
+                {agendaItemCategoryLabels[c]}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button type="submit" class="button button--primary">
+          絞り込む
+        </button>
+      </form>
       {rows.length === 0 ? (
         <p>登録された議題はありません。</p>
       ) : (

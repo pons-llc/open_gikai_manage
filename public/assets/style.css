@@ -375,6 +375,23 @@ section h2 {
   padding: var(--spacing-2) var(--spacing-3);
 }
 
+.checkbox-list summary {
+  cursor: pointer;
+  font-weight: var(--font-weight-medium);
+  padding: var(--spacing-1) 0;
+}
+
+.field-filter {
+  margin-bottom: var(--spacing-2);
+}
+
+.inline-upload {
+  margin-top: var(--spacing-3);
+  border: 1px dashed var(--color-neutral-300);
+  border-radius: 4px;
+  padding: var(--spacing-3);
+}
+
 .checkbox-list__row {
   display: flex;
   align-items: center;
@@ -459,7 +476,7 @@ section h2 {
   min-width: 6rem;
 }
 
-.admin-form .checkbox-field {
+.checkbox-field {
   display: flex;
   align-items: center;
   gap: var(--spacing-2);

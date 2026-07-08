@@ -3,6 +3,7 @@ import type { AppEnv } from "../../env";
 import { logAdminMutation } from "../../lib/auditLog";
 import { formFromQuery, str, type ParsedForm } from "../../lib/forms";
 import { getFlash, withFlash, type FlashKind } from "../../lib/flash";
+import { createAgendaItem } from "../../lib/agendaItems";
 import { agendaItemSchema } from "../../validators/agendaItems";
 import { datetimeLocalToDb, dbToDatetimeLocal } from "../../validators/announcements";
 import { Layout } from "../../views/layout";
@@ -16,14 +17,33 @@ import type { SelectOption } from "../../views/admin/committeeMemberships";
 
 export const agendaItemsRoute = new Hono<AppEnv>();
 
-const listAgendaItems = (DB: D1Database) =>
-  DB.prepare(
+/** P1-4: 年度・種類での絞り込み(GET フォーム、JS 不要)。公開側 §6.2 と同じパターン。 */
+const listAgendaItems = (DB: D1Database, year: string, category: string) => {
+  const conditions: string[] = [];
+  const binds: (string | number)[] = [];
+  if (year !== "") {
+    conditions.push("fiscal_year = ?");
+    binds.push(Number(year));
+  }
+  if (category !== "") {
+    conditions.push("category = ?");
+    binds.push(category);
+  }
+  const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+  return DB.prepare(
     `SELECT id, title, fiscal_year, number, category, published_at, (published_at > datetime('now')) AS is_reserved
-     FROM agenda_items
+     FROM agenda_items ${where}
      ORDER BY fiscal_year DESC, category ASC, number DESC`
   )
+    .bind(...binds)
     .all<AgendaItemRow>()
     .then((r) => r.results);
+};
+
+const listFiscalYears = (DB: D1Database) =>
+  DB.prepare(`SELECT DISTINCT fiscal_year FROM agenda_items ORDER BY fiscal_year DESC`)
+    .all<{ fiscal_year: number }>()
+    .then((r) => r.results.map((row) => row.fiscal_year));
 
 const listAgendaTypeOptions = (DB: D1Database) =>
   DB.prepare(`SELECT id, name FROM agenda_types ORDER BY display_order ASC, id ASC`)
@@ -62,10 +82,12 @@ const render = async (
   errors: string[],
   editingId: number | null,
   status: 200 | 400 = 200,
-  flash?: FlashKind
+  flash?: FlashKind,
+  filter: { year: string; category: string } = { year: "", category: "" }
 ) => {
-  const [rows, agendaTypes, committees] = await Promise.all([
-    listAgendaItems(c.env.DB),
+  const [rows, years, agendaTypes, committees] = await Promise.all([
+    listAgendaItems(c.env.DB, filter.year, filter.category),
+    listFiscalYears(c.env.DB),
     listAgendaTypeOptions(c.env.DB),
     listCommitteeOptions(c.env.DB),
   ]);
@@ -73,6 +95,8 @@ const render = async (
     <Layout title="議題管理" variant="admin" adminEmail={c.get("adminEmail")} flash={flash}>
       <AgendaItemsPage
         rows={rows}
+        years={years}
+        filter={filter}
         agendaTypes={agendaTypes}
         committees={committees}
         form={form}
@@ -84,10 +108,15 @@ const render = async (
   );
 };
 
-/** P1-2: 同年度の議題を続けて登録する場合に年度・種類を引き継ぐ。 */
+/**
+ * P1-2: 同年度の議題を続けて登録する場合に年度・種類を引き継ぐ。
+ * P1-4: 一覧の絞り込みも同じ `fiscal_year` / `category` クエリを使う(絞り込んだ文脈のまま新規登録に入れる)。
+ */
 agendaItemsRoute.get("/", async (c) => {
+  const year = c.req.query("fiscal_year") ?? "";
+  const category = c.req.query("category") ?? "";
   const form = formFromQuery(emptyAgendaItemForm, c.req.query(), ["fiscal_year", "category"]);
-  return render(c, form, [], null, 200, getFlash(c));
+  return render(c, form, [], null, 200, getFlash(c), { year, category });
 });
 
 agendaItemsRoute.get("/:id/edit", async (c) => {
@@ -127,34 +156,15 @@ agendaItemsRoute.get("/:id/edit", async (c) => {
 agendaItemsRoute.post("/", async (c) => {
   const rawForm = await c.req.parseBody();
   const form = readForm(rawForm);
-  const parsed = agendaItemSchema.safeParse(toSchemaInput(form));
-  if (!parsed.success) {
-    return render(c, form, parsed.error.issues.map((i) => i.message), null, 400);
-  }
-  try {
-    const result = await c.env.DB.prepare(
-      `INSERT INTO agenda_items (title, fiscal_year, number, category, agenda_type_id, committee_id, published_at)
-       VALUES (?, ?, ?, ?, ?, ?, COALESCE(NULLIF(?, ''), datetime('now')))`
-    )
-      .bind(
-        parsed.data.title,
-        parsed.data.fiscal_year,
-        parsed.data.number,
-        parsed.data.category,
-        parsed.data.agenda_type_id,
-        parsed.data.committee_id,
-        parsed.data.published_at
-      )
-      .run();
-    logAdminMutation(c, "agenda_items", result.meta.last_row_id ?? null, "create");
-  } catch {
-    return render(c, form, ["この年度・種類の番号は既に使用されています"], null, 400);
+  const result = await createAgendaItem(c, toSchemaInput(form));
+  if (!result.ok) {
+    return render(c, form, result.errors, null, 400);
   }
   if (str(rawForm, "save_mode") === "continue") {
     return c.redirect(
       withFlash("/admin/agenda-items", "created", {
-        fiscal_year: String(parsed.data.fiscal_year),
-        category: parsed.data.category,
+        fiscal_year: String(result.fiscal_year),
+        category: result.category,
       })
     );
   }

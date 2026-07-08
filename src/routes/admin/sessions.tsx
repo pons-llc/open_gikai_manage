@@ -11,6 +11,7 @@ import {
   type SessionFormValues,
   type SessionRow,
 } from "../../views/admin/sessions";
+import { SessionHubPage, type SessionHubMeetingRow } from "../../views/admin/sessionHub";
 
 export const sessionsRoute = new Hono<AppEnv>();
 
@@ -18,6 +19,43 @@ const listSessions = (DB: D1Database) =>
   DB.prepare(`SELECT id, name, start_date, end_date FROM regular_sessions ORDER BY start_date DESC, id DESC`)
     .all<SessionRow>()
     .then((r) => r.results);
+
+const loadSession = (DB: D1Database, id: number) =>
+  DB.prepare(`SELECT id, name, start_date, end_date FROM regular_sessions WHERE id = ?`).bind(id).first<SessionRow>();
+
+const listSessionMeetings = (DB: D1Database, regularSessionId: number) =>
+  DB.prepare(
+    `SELECT m.id, m.meeting_type, c.name AS committee_name, m.date, m.start_type, m.start_time
+     FROM meetings m
+     LEFT JOIN committees c ON c.id = m.committee_id
+     WHERE m.regular_session_id = ?
+     ORDER BY m.date ASC, m.id ASC`
+  )
+    .bind(regularSessionId)
+    .all<SessionHubMeetingRow>()
+    .then((r) => r.results);
+
+/** P2-3: 定例会詳細ハブ。会期情報フォーム + この定例会に紐づく日程の一覧。 */
+const renderSessionHub = async (
+  c: Context<AppEnv>,
+  sessionId: number,
+  options: { errors?: string[]; status?: 200 | 400; flash?: FlashKind } = {}
+) => {
+  const session = await loadSession(c.env.DB, sessionId);
+  if (!session) return c.notFound();
+  const meetings = await listSessionMeetings(c.env.DB, sessionId);
+  return c.html(
+    <Layout title={`定例会: ${session.name}`} variant="admin" adminEmail={c.get("adminEmail")} flash={options.flash}>
+      <SessionHubPage
+        session={session}
+        form={{ name: session.name, start_date: session.start_date, end_date: session.end_date }}
+        errors={options.errors ?? []}
+        meetings={meetings}
+      />
+    </Layout>,
+    options.status ?? 200
+  );
+};
 
 const readForm = (form: ParsedForm): SessionFormValues => ({
   name: str(form, "name"),
@@ -53,6 +91,12 @@ sessionsRoute.get("/:id/edit", async (c) => {
   return render(c, { name: row.name, start_date: row.start_date, end_date: row.end_date }, [], id);
 });
 
+/** P2-3: 定例会詳細ハブ。定例会一覧の「編集」リンクはここへ変更する。 */
+sessionsRoute.get("/:id", async (c) => {
+  const id = Number(c.req.param("id"));
+  return renderSessionHub(c, id, { flash: getFlash(c) });
+});
+
 sessionsRoute.post("/", async (c) => {
   const form = readForm(await c.req.parseBody());
   const parsed = sessionSchema.safeParse(form);
@@ -80,7 +124,7 @@ sessionsRoute.post("/:id", async (c) => {
     .run();
   if (result.meta.changes === 0) return c.notFound();
   logAdminMutation(c, "regular_sessions", id, "update");
-  return c.redirect(withFlash("/admin/sessions", "updated"));
+  return c.redirect(withFlash(`/admin/sessions/${id}`, "updated"));
 });
 
 sessionsRoute.post("/:id/delete", async (c) => {

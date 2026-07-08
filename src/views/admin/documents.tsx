@@ -24,7 +24,8 @@ export const DocumentsPage: FC<{
   errors: string[];
   usedBytes: number;
   quotaBytes: number;
-}> = ({ rows, agendaItems, errors, usedBytes, quotaBytes }) => {
+  filter: { q: string; unlinkedOnly: boolean };
+}> = ({ rows, agendaItems, errors, usedBytes, quotaBytes, filter }) => {
   const usedRatio = quotaBytes > 0 ? usedBytes / quotaBytes : 0;
   return (
     <>
@@ -32,6 +33,19 @@ export const DocumentsPage: FC<{
         <p class={usedRatio > 0.9 ? "hint storage-usage storage-usage--warning" : "hint storage-usage"}>
           使用量: {formatBytes(usedBytes)} / {formatBytes(quotaBytes)}({(usedRatio * 100).toFixed(1)}%)
         </p>
+        <form method="get" class="search-form">
+          <label>
+            ファイル名
+            <input type="text" name="q" value={filter.q} placeholder="ファイル名で検索" />
+          </label>
+          <label class="checkbox-field">
+            <input type="checkbox" name="unlinked" checked={filter.unlinkedOnly} />
+            議題未紐付けのみ
+          </label>
+          <button type="submit" class="button button--primary">
+            絞り込む
+          </button>
+        </form>
         {rows.length === 0 ? (
           <p>登録された資料はありません。</p>
         ) : (

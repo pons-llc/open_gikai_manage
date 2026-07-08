@@ -24,6 +24,7 @@ import { documentsRoute } from "./routes/admin/documents";
 import { apiDocumentsRoute } from "./routes/api/admin/documents";
 import { meetingsRoute } from "./routes/admin/meetings";
 import { apiMeetingsRoute } from "./routes/api/admin/meetings";
+import { apiAgendaItemsRoute } from "./routes/api/admin/agendaItems";
 import { votesRoute } from "./routes/admin/votes";
 import { dashboardRoute } from "./routes/admin/dashboard";
 
@@ -61,6 +62,7 @@ app.route("/admin/documents", documentsRoute);
 app.route("/api/admin/documents", apiDocumentsRoute);
 app.route("/admin/meetings", meetingsRoute);
 app.route("/api/admin/meetings", apiMeetingsRoute);
+app.route("/api/admin/agenda-items", apiAgendaItemsRoute);
 app.route("/admin/votes", votesRoute);
 app.route("/admin", dashboardRoute);
 

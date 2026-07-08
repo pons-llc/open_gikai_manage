@@ -2,7 +2,7 @@ import { Hono, type Context } from "hono";
 import type { AppEnv } from "../../env";
 import { logAdminMutation } from "../../lib/auditLog";
 import { wouldCreateCycle } from "../../lib/meetings";
-import { idList, str, type ParsedForm } from "../../lib/forms";
+import { formFromQuery, idList, str, type ParsedForm } from "../../lib/forms";
 import { getFlash, withFlash } from "../../lib/flash";
 import { meetingSchema } from "../../validators/meetings";
 import { Layout } from "../../views/layout";
@@ -20,17 +20,37 @@ import type { SelectOption } from "../../views/admin/committeeMemberships";
 
 export const meetingsRoute = new Hono<AppEnv>();
 
-const listMeetings = (DB: D1Database) =>
-  DB.prepare(
+/** P1-4: 年月・定例会での絞り込み(GET フォーム、JS 不要)。 */
+const listMeetings = (DB: D1Database, month: string, regularSessionId: string) => {
+  const conditions: string[] = [];
+  const binds: (string | number)[] = [];
+  if (month !== "") {
+    conditions.push("substr(m.date, 1, 7) = ?");
+    binds.push(month);
+  }
+  if (regularSessionId !== "") {
+    conditions.push("m.regular_session_id = ?");
+    binds.push(Number(regularSessionId));
+  }
+  const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+  return DB.prepare(
     `SELECT m.id, m.meeting_type, c.name AS committee_name, m.date, m.start_type, m.start_time,
             rs.name AS regular_session_name
      FROM meetings m
      LEFT JOIN committees c ON c.id = m.committee_id
      LEFT JOIN regular_sessions rs ON rs.id = m.regular_session_id
+     ${where}
      ORDER BY m.date DESC, m.id DESC`
   )
+    .bind(...binds)
     .all<MeetingRow>()
     .then((r) => r.results);
+};
+
+const listMeetingMonths = (DB: D1Database) =>
+  DB.prepare(`SELECT DISTINCT substr(date, 1, 7) AS month FROM meetings ORDER BY month DESC`)
+    .all<{ month: string }>()
+    .then((r) => r.results.map((row) => row.month));
 
 const listCommitteeOptions = (DB: D1Database) =>
   DB.prepare(`SELECT id, name FROM committees WHERE is_active = 1 ORDER BY display_order ASC, id ASC`)
@@ -50,6 +70,12 @@ const listAgendaItemOptions = (DB: D1Database) =>
 const listDocumentOptions = (DB: D1Database) =>
   DB.prepare(`SELECT id, file_name, file_size FROM documents ORDER BY created_at DESC`)
     .all<DocumentOption>()
+    .then((r) => r.results);
+
+/** P3-4: 議題クイック作成(種類=議案のときのみ議案種別▾を出す)のための選択肢。 */
+const listAgendaTypeOptions = (DB: D1Database) =>
+  DB.prepare(`SELECT id, name FROM agenda_types ORDER BY display_order ASC, id ASC`)
+    .all<SelectOption>()
     .then((r) => r.results);
 
 const listPreviousMeetingOptions = async (
@@ -163,12 +189,13 @@ const render = async (
   editingId: number | null,
   status: 200 | 400 = 200
 ) => {
-  const [committees, regularSessions, agendaItems, documents, previousMeetingOptions] = await Promise.all([
+  const [committees, regularSessions, agendaItems, documents, previousMeetingOptions, agendaTypes] = await Promise.all([
     listCommitteeOptions(c.env.DB),
     listRegularSessionOptions(c.env.DB),
     listAgendaItemOptions(c.env.DB),
     listDocumentOptions(c.env.DB),
     listPreviousMeetingOptions(c.env.DB, form.date, editingId),
+    listAgendaTypeOptions(c.env.DB),
   ]);
   return c.html(
     <Layout title={editingId ? "日程編集" : "日程登録"} variant="admin" adminEmail={c.get("adminEmail")}>
@@ -181,6 +208,7 @@ const render = async (
         previousMeetingOptions={previousMeetingOptions}
         agendaItems={agendaItems}
         documents={documents}
+        agendaTypes={agendaTypes}
       />
     </Layout>,
     status
@@ -188,15 +216,30 @@ const render = async (
 };
 
 meetingsRoute.get("/", async (c) => {
-  const rows = await listMeetings(c.env.DB);
+  const month = c.req.query("month") ?? "";
+  const regularSessionId = c.req.query("regular_session_id") ?? "";
+  const [rows, months, regularSessions] = await Promise.all([
+    listMeetings(c.env.DB, month, regularSessionId),
+    listMeetingMonths(c.env.DB),
+    listRegularSessionOptions(c.env.DB),
+  ]);
   return c.html(
     <Layout title="日程管理" variant="admin" adminEmail={c.get("adminEmail")} flash={getFlash(c)}>
-      <MeetingsListPage rows={rows} />
+      <MeetingsListPage
+        rows={rows}
+        months={months}
+        regularSessions={regularSessions}
+        filter={{ month, regularSessionId }}
+      />
     </Layout>
   );
 });
 
-meetingsRoute.get("/new", async (c) => render(c, emptyMeetingForm, [], null));
+/** P2-3: 定例会ハブの「この定例会に日程を追加」から regular_session_id を引き継いで選び直す手間をなくす。 */
+meetingsRoute.get("/new", async (c) => {
+  const form = formFromQuery(emptyMeetingForm, c.req.query(), ["regular_session_id"]);
+  return render(c, form, [], null);
+});
 
 meetingsRoute.get("/:id/edit", async (c) => {
   const id = Number(c.req.param("id"));
@@ -313,13 +356,17 @@ meetingsRoute.post("/:id/delete", async (c) => {
   try {
     await c.env.DB.prepare(`DELETE FROM meetings WHERE id = ?`).bind(id).run();
   } catch {
-    const rows = await listMeetings(c.env.DB);
+    const [rows, months, regularSessions] = await Promise.all([
+      listMeetings(c.env.DB, "", ""),
+      listMeetingMonths(c.env.DB),
+      listRegularSessionOptions(c.env.DB),
+    ]);
     return c.html(
       <Layout title="日程管理" variant="admin" adminEmail={c.get("adminEmail")}>
         <p class="error-banner" role="alert">
           この会議を「前の会議」として指定している会議があるため削除できません(先にその会議の設定を変更してください)。
         </p>
-        <MeetingsListPage rows={rows} />
+        <MeetingsListPage rows={rows} months={months} regularSessions={regularSessions} filter={{ month: "", regularSessionId: "" }} />
       </Layout>,
       400
     );

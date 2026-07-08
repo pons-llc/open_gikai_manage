@@ -3,7 +3,8 @@ import type { AppEnv } from "../../env";
 import { logAdminMutation } from "../../lib/auditLog";
 import { formFromQuery, str, type ParsedForm } from "../../lib/forms";
 import { getFlash, withFlash, type FlashKind } from "../../lib/flash";
-import { factionMembershipSchema, termsOverlap } from "../../validators/factionMemberships";
+import { checkFactionOverlap, createFactionMembership } from "../../lib/memberships";
+import { factionMembershipSchema } from "../../validators/factionMemberships";
 import { Layout } from "../../views/layout";
 import type { SelectOption } from "../../views/admin/committeeMemberships";
 import {
@@ -72,22 +73,6 @@ const render = async (
   );
 };
 
-/** §8: 同一議員の所属期間が重複しないこと(同時所属は1会派のみ)。委員会所属と違い faction は問わず member 単位で見る。 */
-const checkOverlap = async (
-  DB: D1Database,
-  memberId: number,
-  termStart: string,
-  termEnd: string | null,
-  editingId: number | null
-): Promise<boolean> => {
-  const { results } = await DB.prepare(
-    `SELECT term_start, term_end FROM faction_memberships WHERE member_id = ? AND id != ?`
-  )
-    .bind(memberId, editingId ?? -1)
-    .all<{ term_start: string; term_end: string | null }>();
-  return results.some((r) => termsOverlap(termStart, termEnd, r.term_start, r.term_end));
-};
-
 /** P1-2: 会派所属を10人分入れる場合、会派・所属開始日を引き継ぐ。 */
 factionMembershipsRoute.get("/", async (c) => {
   const form = formFromQuery(emptyFactionMembershipForm, c.req.query(), ["faction_id", "term_start"]);
@@ -118,30 +103,21 @@ factionMembershipsRoute.get("/:id/edit", async (c) => {
 factionMembershipsRoute.post("/", async (c) => {
   const rawForm = await c.req.parseBody();
   const form = readForm(rawForm);
-  const parsed = factionMembershipSchema.safeParse({
+  const input = {
     faction_id: Number(form.faction_id) || 0,
     member_id: Number(form.member_id) || 0,
     term_start: form.term_start,
     term_end: form.term_end === "" ? null : form.term_end,
-  });
-  if (!parsed.success) {
-    return render(c, form, parsed.error.issues.map((i) => i.message), null, 400);
+  };
+  const result = await createFactionMembership(c, input);
+  if (!result.ok) {
+    return render(c, form, result.errors, null, 400);
   }
-  const overlap = await checkOverlap(c.env.DB, parsed.data.member_id, parsed.data.term_start, parsed.data.term_end, null);
-  if (overlap) {
-    return render(c, form, ["この議員は同時に複数の会派に所属できません(既存の所属期間と重複しています)"], null, 400);
-  }
-  const result = await c.env.DB.prepare(
-    `INSERT INTO faction_memberships (faction_id, member_id, term_start, term_end) VALUES (?, ?, ?, ?)`
-  )
-    .bind(parsed.data.faction_id, parsed.data.member_id, parsed.data.term_start, parsed.data.term_end)
-    .run();
-  logAdminMutation(c, "faction_memberships", result.meta.last_row_id ?? null, "create");
   if (str(rawForm, "save_mode") === "continue") {
     return c.redirect(
       withFlash("/admin/faction-memberships", "created", {
-        faction_id: String(parsed.data.faction_id),
-        term_start: parsed.data.term_start,
+        faction_id: String(input.faction_id),
+        term_start: input.term_start,
       })
     );
   }
@@ -160,7 +136,7 @@ factionMembershipsRoute.post("/:id", async (c) => {
   if (!parsed.success) {
     return render(c, form, parsed.error.issues.map((i) => i.message), id, 400);
   }
-  const overlap = await checkOverlap(c.env.DB, parsed.data.member_id, parsed.data.term_start, parsed.data.term_end, id);
+  const overlap = await checkFactionOverlap(c.env.DB, parsed.data.member_id, parsed.data.term_start, parsed.data.term_end, id);
   if (overlap) {
     return render(c, form, ["この議員は同時に複数の会派に所属できません(既存の所属期間と重複しています)"], id, 400);
   }
