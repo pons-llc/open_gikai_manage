@@ -3,6 +3,7 @@ import type { AppEnv } from "../../env";
 import { logAdminMutation } from "../../lib/auditLog";
 import { str, type ParsedForm } from "../../lib/forms";
 import { getFlash, withFlash, type FlashKind } from "../../lib/flash";
+import { ADMIN_PAGE_SIZE, buildPageHref, paginationOffset, parsePage, totalPages as computeTotalPages } from "../../lib/pagination";
 import { agendaTypeSchema } from "../../validators/agendaTypes";
 import { Layout } from "../../views/layout";
 import {
@@ -14,10 +15,16 @@ import {
 
 export const agendaTypesRoute = new Hono<AppEnv>();
 
-const listAgendaTypes = (DB: D1Database) =>
-  DB.prepare(`SELECT id, name, display_order FROM agenda_types ORDER BY display_order ASC, id ASC`)
+const listAgendaTypes = (DB: D1Database, page: number) =>
+  DB.prepare(`SELECT id, name, display_order FROM agenda_types ORDER BY display_order ASC, id ASC LIMIT ? OFFSET ?`)
+    .bind(ADMIN_PAGE_SIZE, paginationOffset(page))
     .all<AgendaTypeRow>()
     .then((r) => r.results);
+
+const countAgendaTypes = (DB: D1Database) =>
+  DB.prepare(`SELECT COUNT(*) AS n FROM agenda_types`)
+    .first<{ n: number }>()
+    .then((r) => r?.n ?? 0);
 
 const readForm = (form: ParsedForm): AgendaTypeFormValues => ({
   name: str(form, "name"),
@@ -30,18 +37,29 @@ const render = async (
   errors: string[],
   editingId: number | null,
   status: 200 | 400 = 200,
-  flash?: FlashKind
+  flash?: FlashKind,
+  page: number = 1
 ) => {
-  const rows = await listAgendaTypes(c.env.DB);
+  const [rows, count] = await Promise.all([listAgendaTypes(c.env.DB, page), countAgendaTypes(c.env.DB)]);
   return c.html(
     <Layout title="議案種別管理" variant="admin" adminEmail={c.get("adminEmail")} flash={flash}>
-      <AgendaTypesPage rows={rows} form={form} errors={errors} editingId={editingId} />
+      <AgendaTypesPage
+        rows={rows}
+        form={form}
+        errors={errors}
+        editingId={editingId}
+        page={page}
+        totalPages={computeTotalPages(count)}
+        buildHref={(p) => buildPageHref("/admin/agenda-types", c.req.query(), p)}
+      />
     </Layout>,
     status
   );
 };
 
-agendaTypesRoute.get("/", async (c) => render(c, emptyAgendaTypeForm, [], null, 200, getFlash(c)));
+agendaTypesRoute.get("/", async (c) =>
+  render(c, emptyAgendaTypeForm, [], null, 200, getFlash(c), parsePage(c.req.query("page")))
+);
 
 agendaTypesRoute.get("/:id/edit", async (c) => {
   const id = Number(c.req.param("id"));

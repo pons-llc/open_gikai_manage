@@ -1,7 +1,7 @@
 import type { FC } from "hono/jsx";
 import { ALLOWED_EXTENSIONS } from "../../lib/storage";
 import type { SelectOption } from "./committeeMemberships";
-import { AdminSection, DeleteForm, ErrorList } from "./shared";
+import { AdminSection, DeleteForm, ErrorList, Pagination } from "./shared";
 
 export type DocumentRow = {
   id: number;
@@ -25,7 +25,10 @@ export const DocumentsPage: FC<{
   usedBytes: number;
   quotaBytes: number;
   filter: { q: string; unlinkedOnly: boolean };
-}> = ({ rows, agendaItems, errors, usedBytes, quotaBytes, filter }) => {
+  page: number;
+  totalPages: number;
+  buildHref: (page: number) => string;
+}> = ({ rows, agendaItems, errors, usedBytes, quotaBytes, filter, page, totalPages, buildHref }) => {
   const usedRatio = quotaBytes > 0 ? usedBytes / quotaBytes : 0;
   return (
     <>
@@ -76,6 +79,7 @@ export const DocumentsPage: FC<{
             </tbody>
           </table>
         )}
+        <Pagination page={page} totalPages={totalPages} buildHref={buildHref} />
       </AdminSection>
 
       <AdminSection title="資料をアップロード">

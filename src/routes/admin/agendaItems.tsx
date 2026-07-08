@@ -3,6 +3,7 @@ import type { AppEnv } from "../../env";
 import { logAdminMutation } from "../../lib/auditLog";
 import { formFromQuery, str, type ParsedForm } from "../../lib/forms";
 import { getFlash, withFlash, type FlashKind } from "../../lib/flash";
+import { ADMIN_PAGE_SIZE, buildPageHref, paginationOffset, parsePage, totalPages as computeTotalPages } from "../../lib/pagination";
 import { createAgendaItem } from "../../lib/agendaItems";
 import { agendaItemSchema, AGENDA_ITEM_SORTS, isAgendaItemSort, type AgendaItemSort } from "../../validators/agendaItems";
 import { datetimeLocalToDb, dbToDatetimeLocal } from "../../validators/announcements";
@@ -19,7 +20,7 @@ import type { SelectOption } from "../../views/admin/committeeMemberships";
 export const agendaItemsRoute = new Hono<AppEnv>();
 
 /** P1-4: 年度・種類での絞り込み(GET フォーム、JS 不要)。公開側 §6.2 と同じパターン。 */
-const listAgendaItems = (DB: D1Database, year: string, category: string, sort: AgendaItemSort) => {
+const buildAgendaItemConditions = (year: string, category: string): { where: string; binds: (string | number)[] } => {
   const conditions: string[] = [];
   const binds: (string | number)[] = [];
   if (year !== "") {
@@ -30,15 +31,28 @@ const listAgendaItems = (DB: D1Database, year: string, category: string, sort: A
     conditions.push("category = ?");
     binds.push(category);
   }
-  const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+  return { where: conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "", binds };
+};
+
+const listAgendaItems = (DB: D1Database, year: string, category: string, sort: AgendaItemSort, page: number) => {
+  const { where, binds } = buildAgendaItemConditions(year, category);
   return DB.prepare(
     `SELECT id, title, fiscal_year, number, category, published_at, (published_at > datetime('now')) AS is_reserved
      FROM agenda_items ${where}
-     ORDER BY ${AGENDA_ITEM_SORTS[sort]}`
+     ORDER BY ${AGENDA_ITEM_SORTS[sort]}
+     LIMIT ? OFFSET ?`
   )
-    .bind(...binds)
+    .bind(...binds, ADMIN_PAGE_SIZE, paginationOffset(page))
     .all<AgendaItemRow>()
     .then((r) => r.results);
+};
+
+const countAgendaItems = (DB: D1Database, year: string, category: string) => {
+  const { where, binds } = buildAgendaItemConditions(year, category);
+  return DB.prepare(`SELECT COUNT(*) AS n FROM agenda_items ${where}`)
+    .bind(...binds)
+    .first<{ n: number }>()
+    .then((r) => r?.n ?? 0);
 };
 
 const listAgendaItemDocuments = (DB: D1Database, agendaItemId: number) =>
@@ -90,15 +104,24 @@ const toSchemaInput = (form: AgendaItemFormValues) => ({
 const renderList = async (
   c: Context<AppEnv>,
   flash: FlashKind | undefined,
-  filter: { year: string; category: string; sort: AgendaItemSort }
+  filter: { year: string; category: string; sort: AgendaItemSort },
+  page: number
 ) => {
-  const [rows, years] = await Promise.all([
-    listAgendaItems(c.env.DB, filter.year, filter.category, filter.sort),
+  const [rows, years, count] = await Promise.all([
+    listAgendaItems(c.env.DB, filter.year, filter.category, filter.sort, page),
     listFiscalYears(c.env.DB),
+    countAgendaItems(c.env.DB, filter.year, filter.category),
   ]);
   return c.html(
     <Layout title="議題管理" variant="admin" adminEmail={c.get("adminEmail")} flash={flash}>
-      <AgendaItemsListPage rows={rows} years={years} filter={filter} />
+      <AgendaItemsListPage
+        rows={rows}
+        years={years}
+        filter={filter}
+        page={page}
+        totalPages={computeTotalPages(count)}
+        buildHref={(p) => buildPageHref("/admin/agenda-items", c.req.query(), p)}
+      />
     </Layout>
   );
 };
@@ -136,7 +159,7 @@ agendaItemsRoute.get("/", async (c) => {
   const category = c.req.query("category") ?? "";
   const sortRaw = c.req.query("sort") ?? "";
   const sort = isAgendaItemSort(sortRaw) ? sortRaw : "fiscal_year_desc";
-  return renderList(c, getFlash(c), { year, category, sort });
+  return renderList(c, getFlash(c), { year, category, sort }, parsePage(c.req.query("page")));
 });
 
 /** P1-2: 同年度の議題を続けて登録する場合に年度・種類を引き継ぐ。 */

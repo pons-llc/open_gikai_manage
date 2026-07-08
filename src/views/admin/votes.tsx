@@ -1,6 +1,6 @@
 import type { FC } from "hono/jsx";
 import { voteResultLabels, voteResults } from "../../validators/votes";
-import { AdminSection, ErrorList } from "./shared";
+import { AdminSection, ErrorList, Pagination } from "./shared";
 
 export type VoteMeetingRow = {
   id: number;
@@ -12,7 +12,12 @@ export type VoteMeetingRow = {
 export type VoteGridAgendaItem = { id: number; title: string };
 export type VoteGridMember = { id: number; name: string; seat_number: number };
 
-export const VotesListPage: FC<{ rows: VoteMeetingRow[] }> = ({ rows }) => (
+export const VotesListPage: FC<{
+  rows: VoteMeetingRow[];
+  page: number;
+  totalPages: number;
+  buildHref: (page: number) => string;
+}> = ({ rows, page, totalPages, buildHref }) => (
   <AdminSection
     title="賛否記録"
     description="日程管理で議題を紐付けた会議ごとに、議題×議員のマス目で賛否をまとめて記録します。"
@@ -45,6 +50,7 @@ export const VotesListPage: FC<{ rows: VoteMeetingRow[] }> = ({ rows }) => (
         </tbody>
       </table>
     )}
+    <Pagination page={page} totalPages={totalPages} buildHref={buildHref} />
   </AdminSection>
 );
 

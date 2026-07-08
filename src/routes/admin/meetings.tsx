@@ -4,6 +4,7 @@ import { logAdminMutation } from "../../lib/auditLog";
 import { wouldCreateCycle } from "../../lib/meetings";
 import { formFromQuery, idList, str, type ParsedForm } from "../../lib/forms";
 import { getFlash, withFlash } from "../../lib/flash";
+import { ADMIN_PAGE_SIZE, buildPageHref, paginationOffset, parsePage, totalPages as computeTotalPages } from "../../lib/pagination";
 import { meetingSchema, MEETING_SORTS, isMeetingSort, type MeetingSort } from "../../validators/meetings";
 import { Layout } from "../../views/layout";
 import {
@@ -21,7 +22,10 @@ import type { SelectOption } from "../../views/admin/committeeMemberships";
 export const meetingsRoute = new Hono<AppEnv>();
 
 /** P1-4: 年月・定例会での絞り込み(GET フォーム、JS 不要)。並べ替えは MEETING_SORTS のホワイトリストのみ。 */
-const listMeetings = (DB: D1Database, month: string, regularSessionId: string, sort: MeetingSort) => {
+const buildMeetingConditions = (
+  month: string,
+  regularSessionId: string
+): { where: string; binds: (string | number)[] } => {
   const conditions: string[] = [];
   const binds: (string | number)[] = [];
   if (month !== "") {
@@ -32,7 +36,11 @@ const listMeetings = (DB: D1Database, month: string, regularSessionId: string, s
     conditions.push("m.regular_session_id = ?");
     binds.push(Number(regularSessionId));
   }
-  const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+  return { where: conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "", binds };
+};
+
+const listMeetings = (DB: D1Database, month: string, regularSessionId: string, sort: MeetingSort, page: number) => {
+  const { where, binds } = buildMeetingConditions(month, regularSessionId);
   return DB.prepare(
     `SELECT m.id, m.meeting_type, c.name AS committee_name, m.date, m.start_type, m.start_time,
             rs.name AS regular_session_name,
@@ -41,11 +49,20 @@ const listMeetings = (DB: D1Database, month: string, regularSessionId: string, s
      LEFT JOIN committees c ON c.id = m.committee_id
      LEFT JOIN regular_sessions rs ON rs.id = m.regular_session_id
      ${where}
-     ORDER BY ${MEETING_SORTS[sort]}`
+     ORDER BY ${MEETING_SORTS[sort]}
+     LIMIT ? OFFSET ?`
   )
-    .bind(...binds)
+    .bind(...binds, ADMIN_PAGE_SIZE, paginationOffset(page))
     .all<MeetingRow>()
     .then((r) => r.results);
+};
+
+const countMeetings = (DB: D1Database, month: string, regularSessionId: string) => {
+  const { where, binds } = buildMeetingConditions(month, regularSessionId);
+  return DB.prepare(`SELECT COUNT(*) AS n FROM meetings m ${where}`)
+    .bind(...binds)
+    .first<{ n: number }>()
+    .then((r) => r?.n ?? 0);
 };
 
 const listMeetingMonths = (DB: D1Database) =>
@@ -221,10 +238,12 @@ meetingsRoute.get("/", async (c) => {
   const regularSessionId = c.req.query("regular_session_id") ?? "";
   const sortRaw = c.req.query("sort") ?? "";
   const sort = isMeetingSort(sortRaw) ? sortRaw : "date_desc";
-  const [rows, months, regularSessions] = await Promise.all([
-    listMeetings(c.env.DB, month, regularSessionId, sort),
+  const page = parsePage(c.req.query("page"));
+  const [rows, months, regularSessions, count] = await Promise.all([
+    listMeetings(c.env.DB, month, regularSessionId, sort, page),
     listMeetingMonths(c.env.DB),
     listRegularSessionOptions(c.env.DB),
+    countMeetings(c.env.DB, month, regularSessionId),
   ]);
   return c.html(
     <Layout title="日程管理" variant="admin" adminEmail={c.get("adminEmail")} flash={getFlash(c)}>
@@ -233,6 +252,9 @@ meetingsRoute.get("/", async (c) => {
         months={months}
         regularSessions={regularSessions}
         filter={{ month, regularSessionId, sort }}
+        page={page}
+        totalPages={computeTotalPages(count)}
+        buildHref={(p) => buildPageHref("/admin/meetings", c.req.query(), p)}
       />
     </Layout>
   );
@@ -360,7 +382,7 @@ meetingsRoute.post("/:id/delete", async (c) => {
     await c.env.DB.prepare(`DELETE FROM meetings WHERE id = ?`).bind(id).run();
   } catch {
     const [rows, months, regularSessions] = await Promise.all([
-      listMeetings(c.env.DB, "", "", "date_desc"),
+      listMeetings(c.env.DB, "", "", "date_desc", 1),
       listMeetingMonths(c.env.DB),
       listRegularSessionOptions(c.env.DB),
     ]);
@@ -374,6 +396,9 @@ meetingsRoute.post("/:id/delete", async (c) => {
           months={months}
           regularSessions={regularSessions}
           filter={{ month: "", regularSessionId: "", sort: "date_desc" }}
+          page={1}
+          totalPages={1}
+          buildHref={(p) => buildPageHref("/admin/meetings", {}, p)}
         />
       </Layout>,
       400

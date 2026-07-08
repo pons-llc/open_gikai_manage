@@ -1,6 +1,6 @@
 import type { FC } from "hono/jsx";
 import { committeeCategories, committeeCategoryLabels } from "../../validators/committees";
-import { AdminSection, DeleteForm, ErrorList } from "./shared";
+import { AdminSection, DeleteForm, ErrorList, Pagination } from "./shared";
 
 export type CommitteeRow = {
   id: number;
@@ -29,7 +29,10 @@ export const CommitteesPage: FC<{
   form: CommitteeFormValues;
   errors: string[];
   editingId: number | null;
-}> = ({ rows, form, errors, editingId }) => (
+  page: number;
+  totalPages: number;
+  buildHref: (page: number) => string;
+}> = ({ rows, form, errors, editingId, page, totalPages, buildHref }) => (
   <>
     <AdminSection title="委員会一覧">
       {rows.length === 0 ? (
@@ -61,6 +64,7 @@ export const CommitteesPage: FC<{
           </tbody>
         </table>
       )}
+      <Pagination page={page} totalPages={totalPages} buildHref={buildHref} />
     </AdminSection>
 
     <AdminSection title={editingId ? "委員会を編集" : "委員会を登録"}>

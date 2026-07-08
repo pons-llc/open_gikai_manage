@@ -1,5 +1,5 @@
 import type { FC } from "hono/jsx";
-import { AdminSection, DeleteForm, ErrorList } from "./shared";
+import { AdminSection, DeleteForm, ErrorList, Pagination } from "./shared";
 
 export type MemberRow = {
   id: number;
@@ -31,7 +31,10 @@ export const MembersPage: FC<{
   form: MemberFormValues;
   errors: string[];
   editingId: number | null;
-}> = ({ rows, form, errors, editingId }) => (
+  page: number;
+  totalPages: number;
+  buildHref: (page: number) => string;
+}> = ({ rows, form, errors, editingId, page, totalPages, buildHref }) => (
   <>
     <AdminSection title="議員一覧">
       {rows.length === 0 ? (
@@ -65,6 +68,7 @@ export const MembersPage: FC<{
           </tbody>
         </table>
       )}
+      <Pagination page={page} totalPages={totalPages} buildHref={buildHref} />
     </AdminSection>
 
     <AdminSection title={editingId ? "議員を編集" : "議員を登録"}>

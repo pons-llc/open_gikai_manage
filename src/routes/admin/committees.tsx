@@ -3,6 +3,7 @@ import type { AppEnv } from "../../env";
 import { logAdminMutation } from "../../lib/auditLog";
 import { checkboxOn, str, type ParsedForm } from "../../lib/forms";
 import { getFlash, withFlash, type FlashKind } from "../../lib/flash";
+import { ADMIN_PAGE_SIZE, buildPageHref, paginationOffset, parsePage, totalPages as computeTotalPages } from "../../lib/pagination";
 import { createCommitteeMembership, endCommitteeMembership } from "../../lib/memberships";
 import { committeeSchema } from "../../validators/committees";
 import { Layout } from "../../views/layout";
@@ -19,10 +20,18 @@ export const committeesRoute = new Hono<AppEnv>();
 
 const ROLE_ORDER: Record<string, number> = { chair: 0, vice_chair: 1, member: 2 };
 
-const listCommittees = (DB: D1Database) =>
-  DB.prepare(`SELECT id, name, category, display_order, is_active FROM committees ORDER BY display_order ASC, id ASC`)
+const listCommittees = (DB: D1Database, page: number) =>
+  DB.prepare(
+    `SELECT id, name, category, display_order, is_active FROM committees ORDER BY display_order ASC, id ASC LIMIT ? OFFSET ?`
+  )
+    .bind(ADMIN_PAGE_SIZE, paginationOffset(page))
     .all<CommitteeRow>()
     .then((r) => r.results);
+
+const countCommittees = (DB: D1Database) =>
+  DB.prepare(`SELECT COUNT(*) AS n FROM committees`)
+    .first<{ n: number }>()
+    .then((r) => r?.n ?? 0);
 
 const loadCommittee = (DB: D1Database, id: number) =>
   DB.prepare(`SELECT id, name, category, display_order, is_active FROM committees WHERE id = ?`)
@@ -94,18 +103,29 @@ const render = async (
   errors: string[],
   editingId: number | null,
   status: 200 | 400 = 200,
-  flash?: FlashKind
+  flash?: FlashKind,
+  page: number = 1
 ) => {
-  const rows = await listCommittees(c.env.DB);
+  const [rows, count] = await Promise.all([listCommittees(c.env.DB, page), countCommittees(c.env.DB)]);
   return c.html(
     <Layout title="委員会管理" variant="admin" adminEmail={c.get("adminEmail")} flash={flash}>
-      <CommitteesPage rows={rows} form={form} errors={errors} editingId={editingId} />
+      <CommitteesPage
+        rows={rows}
+        form={form}
+        errors={errors}
+        editingId={editingId}
+        page={page}
+        totalPages={computeTotalPages(count)}
+        buildHref={(p) => buildPageHref("/admin/committees", c.req.query(), p)}
+      />
     </Layout>,
     status
   );
 };
 
-committeesRoute.get("/", async (c) => render(c, emptyCommitteeForm, [], null, 200, getFlash(c)));
+committeesRoute.get("/", async (c) =>
+  render(c, emptyCommitteeForm, [], null, 200, getFlash(c), parsePage(c.req.query("page")))
+);
 
 committeesRoute.get("/:id/edit", async (c) => {
   const id = Number(c.req.param("id"));

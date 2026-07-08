@@ -3,6 +3,7 @@ import type { AppEnv } from "../../env";
 import { logAdminMutation } from "../../lib/auditLog";
 import { checkboxOn, formFromQuery, str, type ParsedForm } from "../../lib/forms";
 import { getFlash, withFlash, type FlashKind } from "../../lib/flash";
+import { ADMIN_PAGE_SIZE, buildPageHref, paginationOffset, parsePage, totalPages as computeTotalPages } from "../../lib/pagination";
 import { createCommitteeMembership, createFactionMembership, endCommitteeMembership, endFactionMembership } from "../../lib/memberships";
 import { memberSchema } from "../../validators/members";
 import { Layout } from "../../views/layout";
@@ -21,12 +22,18 @@ import type { SelectOption } from "../../views/admin/committeeMemberships";
 
 export const membersRoute = new Hono<AppEnv>();
 
-const listMembers = (DB: D1Database) =>
+const listMembers = (DB: D1Database, page: number) =>
   DB.prepare(
-    `SELECT id, name, election_count, elected_on, seat_number, is_active FROM members ORDER BY seat_number ASC`
+    `SELECT id, name, election_count, elected_on, seat_number, is_active FROM members ORDER BY seat_number ASC LIMIT ? OFFSET ?`
   )
+    .bind(ADMIN_PAGE_SIZE, paginationOffset(page))
     .all<MemberRow>()
     .then((r) => r.results);
+
+const countMembers = (DB: D1Database) =>
+  DB.prepare(`SELECT COUNT(*) AS n FROM members`)
+    .first<{ n: number }>()
+    .then((r) => r?.n ?? 0);
 
 const readForm = (form: ParsedForm): MemberFormValues => ({
   name: str(form, "name"),
@@ -121,12 +128,21 @@ const render = async (
   errors: string[],
   editingId: number | null,
   status: 200 | 400 = 200,
-  flash?: FlashKind
+  flash?: FlashKind,
+  page: number = 1
 ) => {
-  const rows = await listMembers(c.env.DB);
+  const [rows, count] = await Promise.all([listMembers(c.env.DB, page), countMembers(c.env.DB)]);
   return c.html(
     <Layout title="議員管理" variant="admin" adminEmail={c.get("adminEmail")} flash={flash}>
-      <MembersPage rows={rows} form={form} errors={errors} editingId={editingId} />
+      <MembersPage
+        rows={rows}
+        form={form}
+        errors={errors}
+        editingId={editingId}
+        page={page}
+        totalPages={computeTotalPages(count)}
+        buildHref={(p) => buildPageHref("/admin/members", c.req.query(), p)}
+      />
     </Layout>,
     status
   );
@@ -135,7 +151,7 @@ const render = async (
 /** P1-2: 同期の議員をまとめて登録する場合に当選期・当選年月日を引き継ぐ。 */
 membersRoute.get("/", async (c) => {
   const form = formFromQuery(emptyMemberForm, c.req.query(), ["elected_on", "election_count"]);
-  return render(c, form, [], null, 200, getFlash(c));
+  return render(c, form, [], null, 200, getFlash(c), parsePage(c.req.query("page")));
 });
 
 membersRoute.get("/:id/edit", async (c) => {

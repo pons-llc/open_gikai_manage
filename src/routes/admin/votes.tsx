@@ -3,6 +3,7 @@ import type { AppEnv } from "../../env";
 import { logAdminMutation } from "../../lib/auditLog";
 import { str } from "../../lib/forms";
 import { getFlash, withFlash } from "../../lib/flash";
+import { ADMIN_PAGE_SIZE, buildPageHref, paginationOffset, parsePage, totalPages as computeTotalPages } from "../../lib/pagination";
 import { isVoteResult } from "../../validators/votes";
 import { Layout } from "../../views/layout";
 import {
@@ -15,7 +16,7 @@ import {
 
 export const votesRoute = new Hono<AppEnv>();
 
-const listVoteMeetings = (DB: D1Database) =>
+const listVoteMeetings = (DB: D1Database, page: number) =>
   DB.prepare(
     `SELECT m.id, m.date,
             CASE WHEN m.meeting_type = 'committee' THEN COALESCE(c.name, '委員会') ELSE '本会議' END AS meeting_label,
@@ -24,10 +25,21 @@ const listVoteMeetings = (DB: D1Database) =>
      JOIN meeting_agenda_items mai ON mai.meeting_id = m.id
      LEFT JOIN committees c ON c.id = m.committee_id
      GROUP BY m.id
-     ORDER BY m.date DESC, m.id DESC`
+     ORDER BY m.date DESC, m.id DESC
+     LIMIT ? OFFSET ?`
   )
+    .bind(ADMIN_PAGE_SIZE, paginationOffset(page))
     .all<VoteMeetingRow>()
     .then((r) => r.results);
+
+const countVoteMeetings = (DB: D1Database) =>
+  DB.prepare(
+    `SELECT COUNT(*) AS n FROM (
+       SELECT m.id FROM meetings m JOIN meeting_agenda_items mai ON mai.meeting_id = m.id GROUP BY m.id
+     ) t`
+  )
+    .first<{ n: number }>()
+    .then((r) => r?.n ?? 0);
 
 const loadMeeting = (DB: D1Database, meetingId: number) =>
   DB.prepare(
@@ -70,10 +82,16 @@ const listExistingCells = (DB: D1Database, meetingId: number) =>
     .then((r) => r.results);
 
 votesRoute.get("/", async (c) => {
-  const rows = await listVoteMeetings(c.env.DB);
+  const page = parsePage(c.req.query("page"));
+  const [rows, count] = await Promise.all([listVoteMeetings(c.env.DB, page), countVoteMeetings(c.env.DB)]);
   return c.html(
     <Layout title="賛否記録" variant="admin" adminEmail={c.get("adminEmail")}>
-      <VotesListPage rows={rows} />
+      <VotesListPage
+        rows={rows}
+        page={page}
+        totalPages={computeTotalPages(count)}
+        buildHref={(p) => buildPageHref("/admin/votes", c.req.query(), p)}
+      />
     </Layout>
   );
 });

@@ -1,5 +1,5 @@
 import type { FC } from "hono/jsx";
-import { AdminSection, DeleteForm, ErrorList } from "./shared";
+import { AdminSection, DeleteForm, ErrorList, Pagination } from "./shared";
 
 export type AnnouncementRow = {
   id: number;
@@ -27,7 +27,10 @@ export const AnnouncementsPage: FC<{
   form: AnnouncementFormValues;
   errors: string[];
   editingId: number | null;
-}> = ({ rows, form, errors, editingId }) => (
+  page: number;
+  totalPages: number;
+  buildHref: (page: number) => string;
+}> = ({ rows, form, errors, editingId, page, totalPages, buildHref }) => (
   <>
     <div class="admin-header-note">公開サイトへの反映には最大30分かかります(design.md §9.1)。</div>
 
@@ -59,6 +62,7 @@ export const AnnouncementsPage: FC<{
           </tbody>
         </table>
       )}
+      <Pagination page={page} totalPages={totalPages} buildHref={buildHref} />
     </AdminSection>
 
     <AdminSection title={editingId ? "お知らせを編集" : "お知らせを登録"}>

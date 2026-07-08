@@ -34,6 +34,58 @@ export const DeleteForm: FC<{ action: string; label?: string }> = ({ action, lab
   </form>
 );
 
+/** 一覧共通のページ送り。前後リンク + 現在ページ周辺の番号(省略記号つき)。totalPages<=1 なら何も出さない。 */
+export const Pagination: FC<{ page: number; totalPages: number; buildHref: (page: number) => string }> = ({
+  page,
+  totalPages,
+  buildHref,
+}) => {
+  if (totalPages <= 1) return null;
+  const pages: number[] = [];
+  for (let p = Math.max(1, page - 2); p <= Math.min(totalPages, page + 2); p++) pages.push(p);
+  return (
+    <nav class="pagination" aria-label="ページ送り">
+      {page > 1 && (
+        <a href={buildHref(page - 1)} class="pagination__link">
+          前へ
+        </a>
+      )}
+      {pages[0] > 1 && (
+        <>
+          <a href={buildHref(1)} class="pagination__link">
+            1
+          </a>
+          {pages[0] > 2 && <span class="pagination__ellipsis">…</span>}
+        </>
+      )}
+      {pages.map((p) =>
+        p === page ? (
+          <span class="pagination__current" aria-current="page">
+            {p}
+          </span>
+        ) : (
+          <a href={buildHref(p)} class="pagination__link">
+            {p}
+          </a>
+        )
+      )}
+      {pages[pages.length - 1] < totalPages && (
+        <>
+          {pages[pages.length - 1] < totalPages - 1 && <span class="pagination__ellipsis">…</span>}
+          <a href={buildHref(totalPages)} class="pagination__link">
+            {totalPages}
+          </a>
+        </>
+      )}
+      {page < totalPages && (
+        <a href={buildHref(page + 1)} class="pagination__link">
+          次へ
+        </a>
+      )}
+    </nav>
+  );
+};
+
 export const AdminSection: FC<{ title: string; description?: string; children: any }> = ({
   title,
   description,

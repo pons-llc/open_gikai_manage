@@ -3,6 +3,7 @@ import type { AppEnv } from "../../env";
 import { logAdminMutation } from "../../lib/auditLog";
 import { str, type ParsedForm } from "../../lib/forms";
 import { getFlash, withFlash, type FlashKind } from "../../lib/flash";
+import { ADMIN_PAGE_SIZE, buildPageHref, paginationOffset, parsePage, totalPages as computeTotalPages } from "../../lib/pagination";
 import { announcementSchema, datetimeLocalToDb, dbToDatetimeLocal } from "../../validators/announcements";
 import { Layout } from "../../views/layout";
 import {
@@ -14,13 +15,19 @@ import {
 
 export const announcementsRoute = new Hono<AppEnv>();
 
-const listAnnouncements = (DB: D1Database) =>
+const listAnnouncements = (DB: D1Database, page: number) =>
   DB.prepare(
     `SELECT id, subject, published_at, (published_at > datetime('now')) AS is_reserved
-     FROM announcements ORDER BY published_at DESC, id DESC`
+     FROM announcements ORDER BY published_at DESC, id DESC LIMIT ? OFFSET ?`
   )
+    .bind(ADMIN_PAGE_SIZE, paginationOffset(page))
     .all<AnnouncementRow>()
     .then((r) => r.results);
+
+const countAnnouncements = (DB: D1Database) =>
+  DB.prepare(`SELECT COUNT(*) AS n FROM announcements`)
+    .first<{ n: number }>()
+    .then((r) => r?.n ?? 0);
 
 const readForm = (form: ParsedForm): AnnouncementFormValues => ({
   subject: str(form, "subject"),
@@ -35,18 +42,29 @@ const render = async (
   errors: string[],
   editingId: number | null,
   status: 200 | 400 = 200,
-  flash?: FlashKind
+  flash?: FlashKind,
+  page: number = 1
 ) => {
-  const rows = await listAnnouncements(c.env.DB);
+  const [rows, count] = await Promise.all([listAnnouncements(c.env.DB, page), countAnnouncements(c.env.DB)]);
   return c.html(
     <Layout title="お知らせ管理" variant="admin" adminEmail={c.get("adminEmail")} flash={flash}>
-      <AnnouncementsPage rows={rows} form={form} errors={errors} editingId={editingId} />
+      <AnnouncementsPage
+        rows={rows}
+        form={form}
+        errors={errors}
+        editingId={editingId}
+        page={page}
+        totalPages={computeTotalPages(count)}
+        buildHref={(p) => buildPageHref("/admin/announcements", c.req.query(), p)}
+      />
     </Layout>,
     status
   );
 };
 
-announcementsRoute.get("/", async (c) => render(c, emptyAnnouncementForm, [], null, 200, getFlash(c)));
+announcementsRoute.get("/", async (c) =>
+  render(c, emptyAnnouncementForm, [], null, 200, getFlash(c), parsePage(c.req.query("page")))
+);
 
 announcementsRoute.get("/:id/edit", async (c) => {
   const id = Number(c.req.param("id"));

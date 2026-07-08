@@ -1,7 +1,7 @@
 import type { FC } from "hono/jsx";
 import { agendaItemCategories, agendaItemCategoryLabels, type AgendaItemSort } from "../../validators/agendaItems";
 import type { SelectOption } from "./committeeMemberships";
-import { AdminSection, DeleteForm, ErrorList } from "./shared";
+import { AdminSection, DeleteForm, ErrorList, Pagination } from "./shared";
 
 export type AgendaItemRow = {
   id: number;
@@ -56,7 +56,10 @@ export const AgendaItemsListPage: FC<{
   rows: AgendaItemRow[];
   years: number[];
   filter: { year: string; category: string; sort: AgendaItemSort };
-}> = ({ rows, years, filter }) => (
+  page: number;
+  totalPages: number;
+  buildHref: (page: number) => string;
+}> = ({ rows, years, filter, page, totalPages, buildHref }) => (
   <>
     <div class="admin-header-note">公開サイトへの反映には最大30分かかります(design.md §9.1)。</div>
 
@@ -138,6 +141,7 @@ export const AgendaItemsListPage: FC<{
           </tbody>
         </table>
       )}
+      <Pagination page={page} totalPages={totalPages} buildHref={buildHref} />
     </AdminSection>
   </>
 );

@@ -2,7 +2,7 @@ import type { FC } from "hono/jsx";
 import { agendaItemCategories, agendaItemCategoryLabels } from "../../validators/agendaItems";
 import { meetingTypeLabels, meetingTypes, startTypeLabels, startTypes, type MeetingSort } from "../../validators/meetings";
 import type { SelectOption } from "./committeeMemberships";
-import { AdminSection, DeleteForm, ErrorList } from "./shared";
+import { AdminSection, DeleteForm, ErrorList, Pagination } from "./shared";
 
 export type MeetingRow = {
   id: number;
@@ -76,7 +76,10 @@ export const MeetingsListPage: FC<{
   months: string[];
   regularSessions: SelectOption[];
   filter: { month: string; regularSessionId: string; sort: MeetingSort };
-}> = ({ rows, months, regularSessions, filter }) => (
+  page: number;
+  totalPages: number;
+  buildHref: (page: number) => string;
+}> = ({ rows, months, regularSessions, filter, page, totalPages, buildHref }) => (
   <AdminSection title="日程一覧" description="新規登録・チェーン登録は「新しい日程を登録」から行います。">
     <p>
       <a href="/admin/meetings/new" class="button button--primary">
@@ -154,6 +157,7 @@ export const MeetingsListPage: FC<{
         </tbody>
       </table>
     )}
+    <Pagination page={page} totalPages={totalPages} buildHref={buildHref} />
   </AdminSection>
 );
 

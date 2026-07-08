@@ -3,6 +3,7 @@ import type { AppEnv } from "../../env";
 import { logAdminMutation } from "../../lib/auditLog";
 import { formFromQuery, str, type ParsedForm } from "../../lib/forms";
 import { getFlash, withFlash, type FlashKind } from "../../lib/flash";
+import { ADMIN_PAGE_SIZE, buildPageHref, paginationOffset, parsePage, totalPages as computeTotalPages } from "../../lib/pagination";
 import { checkCommitteeOverlap, createCommitteeMembership } from "../../lib/memberships";
 import { committeeMembershipSchema } from "../../validators/committeeMemberships";
 import { Layout } from "../../views/layout";
@@ -16,17 +17,24 @@ import {
 
 export const committeeMembershipsRoute = new Hono<AppEnv>();
 
-const listMemberships = (DB: D1Database) =>
+const listMemberships = (DB: D1Database, page: number) =>
   DB.prepare(
     `SELECT cm.id, cm.committee_id, c.name AS committee_name, cm.member_id, m.name AS member_name,
             cm.role, cm.term_start, cm.term_end
      FROM committee_memberships cm
      JOIN committees c ON c.id = cm.committee_id
      JOIN members m ON m.id = cm.member_id
-     ORDER BY cm.term_start DESC, cm.id DESC`
+     ORDER BY cm.term_start DESC, cm.id DESC
+     LIMIT ? OFFSET ?`
   )
+    .bind(ADMIN_PAGE_SIZE, paginationOffset(page))
     .all<CommitteeMembershipRow>()
     .then((r) => r.results);
+
+const countMemberships = (DB: D1Database) =>
+  DB.prepare(`SELECT COUNT(*) AS n FROM committee_memberships`)
+    .first<{ n: number }>()
+    .then((r) => r?.n ?? 0);
 
 const listCommitteeOptions = (DB: D1Database) =>
   DB.prepare(`SELECT id, name FROM committees ORDER BY display_order ASC, id ASC`)
@@ -52,12 +60,14 @@ const render = async (
   errors: string[],
   editingId: number | null,
   status: 200 | 400 = 200,
-  flash?: FlashKind
+  flash?: FlashKind,
+  page: number = 1
 ) => {
-  const [rows, committees, members] = await Promise.all([
-    listMemberships(c.env.DB),
+  const [rows, committees, members, count] = await Promise.all([
+    listMemberships(c.env.DB, page),
     listCommitteeOptions(c.env.DB),
     listMemberOptions(c.env.DB),
+    countMemberships(c.env.DB),
   ]);
   return c.html(
     <Layout title="委員会所属管理" variant="admin" adminEmail={c.get("adminEmail")} flash={flash}>
@@ -68,6 +78,9 @@ const render = async (
         form={form}
         errors={errors}
         editingId={editingId}
+        page={page}
+        totalPages={computeTotalPages(count)}
+        buildHref={(p) => buildPageHref("/admin/memberships", c.req.query(), p)}
       />
     </Layout>,
     status
@@ -77,7 +90,7 @@ const render = async (
 /** P1-2: 委員会所属を続けて入力する場合、委員会・役職(=委員に戻す)・任期開始を引き継ぐ。 */
 committeeMembershipsRoute.get("/", async (c) => {
   const form = formFromQuery(emptyCommitteeMembershipForm, c.req.query(), ["committee_id", "role", "term_start"]);
-  return render(c, form, [], null, 200, getFlash(c));
+  return render(c, form, [], null, 200, getFlash(c), parsePage(c.req.query("page")));
 });
 
 committeeMembershipsRoute.get("/:id/edit", async (c) => {

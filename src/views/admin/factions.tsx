@@ -1,5 +1,5 @@
 import type { FC } from "hono/jsx";
-import { AdminSection, DeleteForm, ErrorList } from "./shared";
+import { AdminSection, DeleteForm, ErrorList, Pagination } from "./shared";
 
 export type FactionRow = { id: number; name: string; established_on: string; is_active: number };
 export type FactionFormValues = { name: string; established_on: string; is_active: boolean };
@@ -10,7 +10,10 @@ export const FactionsPage: FC<{
   form: FactionFormValues;
   errors: string[];
   editingId: number | null;
-}> = ({ rows, form, errors, editingId }) => (
+  page: number;
+  totalPages: number;
+  buildHref: (page: number) => string;
+}> = ({ rows, form, errors, editingId, page, totalPages, buildHref }) => (
   <>
     <AdminSection title="会派一覧">
       {rows.length === 0 ? (
@@ -40,6 +43,7 @@ export const FactionsPage: FC<{
           </tbody>
         </table>
       )}
+      <Pagination page={page} totalPages={totalPages} buildHref={buildHref} />
     </AdminSection>
 
     <AdminSection title={editingId ? "会派を編集" : "会派を登録"}>

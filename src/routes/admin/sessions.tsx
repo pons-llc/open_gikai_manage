@@ -3,6 +3,7 @@ import type { AppEnv } from "../../env";
 import { logAdminMutation } from "../../lib/auditLog";
 import { str, type ParsedForm } from "../../lib/forms";
 import { getFlash, withFlash, type FlashKind } from "../../lib/flash";
+import { ADMIN_PAGE_SIZE, buildPageHref, paginationOffset, parsePage, totalPages as computeTotalPages } from "../../lib/pagination";
 import { sessionSchema } from "../../validators/sessions";
 import { Layout } from "../../views/layout";
 import {
@@ -15,10 +16,18 @@ import { SessionHubPage, type SessionHubMeetingRow } from "../../views/admin/ses
 
 export const sessionsRoute = new Hono<AppEnv>();
 
-const listSessions = (DB: D1Database) =>
-  DB.prepare(`SELECT id, name, start_date, end_date FROM regular_sessions ORDER BY start_date DESC, id DESC`)
+const listSessions = (DB: D1Database, page: number) =>
+  DB.prepare(
+    `SELECT id, name, start_date, end_date FROM regular_sessions ORDER BY start_date DESC, id DESC LIMIT ? OFFSET ?`
+  )
+    .bind(ADMIN_PAGE_SIZE, paginationOffset(page))
     .all<SessionRow>()
     .then((r) => r.results);
+
+const countSessions = (DB: D1Database) =>
+  DB.prepare(`SELECT COUNT(*) AS n FROM regular_sessions`)
+    .first<{ n: number }>()
+    .then((r) => r?.n ?? 0);
 
 const loadSession = (DB: D1Database, id: number) =>
   DB.prepare(`SELECT id, name, start_date, end_date FROM regular_sessions WHERE id = ?`).bind(id).first<SessionRow>();
@@ -69,18 +78,29 @@ const render = async (
   errors: string[],
   editingId: number | null,
   status: 200 | 400 = 200,
-  flash?: FlashKind
+  flash?: FlashKind,
+  page: number = 1
 ) => {
-  const rows = await listSessions(c.env.DB);
+  const [rows, count] = await Promise.all([listSessions(c.env.DB, page), countSessions(c.env.DB)]);
   return c.html(
     <Layout title="定例会管理" variant="admin" adminEmail={c.get("adminEmail")} flash={flash}>
-      <SessionsPage rows={rows} form={form} errors={errors} editingId={editingId} />
+      <SessionsPage
+        rows={rows}
+        form={form}
+        errors={errors}
+        editingId={editingId}
+        page={page}
+        totalPages={computeTotalPages(count)}
+        buildHref={(p) => buildPageHref("/admin/sessions", c.req.query(), p)}
+      />
     </Layout>,
     status
   );
 };
 
-sessionsRoute.get("/", async (c) => render(c, emptySessionForm, [], null, 200, getFlash(c)));
+sessionsRoute.get("/", async (c) =>
+  render(c, emptySessionForm, [], null, 200, getFlash(c), parsePage(c.req.query("page")))
+);
 
 sessionsRoute.get("/:id/edit", async (c) => {
   const id = Number(c.req.param("id"));

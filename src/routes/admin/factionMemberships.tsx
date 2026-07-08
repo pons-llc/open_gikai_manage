@@ -3,6 +3,7 @@ import type { AppEnv } from "../../env";
 import { logAdminMutation } from "../../lib/auditLog";
 import { formFromQuery, str, type ParsedForm } from "../../lib/forms";
 import { getFlash, withFlash, type FlashKind } from "../../lib/flash";
+import { ADMIN_PAGE_SIZE, buildPageHref, paginationOffset, parsePage, totalPages as computeTotalPages } from "../../lib/pagination";
 import { checkFactionOverlap, createFactionMembership } from "../../lib/memberships";
 import { factionMembershipSchema } from "../../validators/factionMemberships";
 import { Layout } from "../../views/layout";
@@ -16,17 +17,24 @@ import {
 
 export const factionMembershipsRoute = new Hono<AppEnv>();
 
-const listMemberships = (DB: D1Database) =>
+const listMemberships = (DB: D1Database, page: number) =>
   DB.prepare(
     `SELECT fm.id, fm.faction_id, f.name AS faction_name, fm.member_id, m.name AS member_name,
             fm.term_start, fm.term_end
      FROM faction_memberships fm
      JOIN factions f ON f.id = fm.faction_id
      JOIN members m ON m.id = fm.member_id
-     ORDER BY fm.term_start DESC, fm.id DESC`
+     ORDER BY fm.term_start DESC, fm.id DESC
+     LIMIT ? OFFSET ?`
   )
+    .bind(ADMIN_PAGE_SIZE, paginationOffset(page))
     .all<FactionMembershipRow>()
     .then((r) => r.results);
+
+const countMemberships = (DB: D1Database) =>
+  DB.prepare(`SELECT COUNT(*) AS n FROM faction_memberships`)
+    .first<{ n: number }>()
+    .then((r) => r?.n ?? 0);
 
 const listFactionOptions = (DB: D1Database) =>
   DB.prepare(`SELECT id, name FROM factions ORDER BY established_on ASC, id ASC`)
@@ -51,12 +59,14 @@ const render = async (
   errors: string[],
   editingId: number | null,
   status: 200 | 400 = 200,
-  flash?: FlashKind
+  flash?: FlashKind,
+  page: number = 1
 ) => {
-  const [rows, factions, members] = await Promise.all([
-    listMemberships(c.env.DB),
+  const [rows, factions, members, count] = await Promise.all([
+    listMemberships(c.env.DB, page),
     listFactionOptions(c.env.DB),
     listMemberOptions(c.env.DB),
+    countMemberships(c.env.DB),
   ]);
   return c.html(
     <Layout title="会派所属管理" variant="admin" adminEmail={c.get("adminEmail")} flash={flash}>
@@ -67,6 +77,9 @@ const render = async (
         form={form}
         errors={errors}
         editingId={editingId}
+        page={page}
+        totalPages={computeTotalPages(count)}
+        buildHref={(p) => buildPageHref("/admin/faction-memberships", c.req.query(), p)}
       />
     </Layout>,
     status
@@ -76,7 +89,7 @@ const render = async (
 /** P1-2: 会派所属を10人分入れる場合、会派・所属開始日を引き継ぐ。 */
 factionMembershipsRoute.get("/", async (c) => {
   const form = formFromQuery(emptyFactionMembershipForm, c.req.query(), ["faction_id", "term_start"]);
-  return render(c, form, [], null, 200, getFlash(c));
+  return render(c, form, [], null, 200, getFlash(c), parsePage(c.req.query("page")));
 });
 
 factionMembershipsRoute.get("/:id/edit", async (c) => {
