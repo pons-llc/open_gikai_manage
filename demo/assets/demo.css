@@ -253,6 +253,11 @@
   font-size: var(--font-size-body-sm);
 }
 
+.lp-footer__org {
+  margin-top: var(--spacing-4);
+  font-weight: var(--font-weight-medium);
+}
+
 .button--ghost {
   background: var(--color-neutral-white);
   color: var(--color-primary-blue-900);
