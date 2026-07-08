@@ -1,0 +1,81 @@
+/*
+ * DADS (デジタル庁デザインシステム) v2.12.0 トークン
+ * 出典: design-system-mcp/src/data/foundations/{colors,typography,spacing}.ts
+ * 値を変更する場合は design-system-mcp 側のデータではなく、DADS 本体の更新に追従すること。
+ */
+:root {
+  /* --- Color: Primary --- */
+  --color-primary-blue-900: #003CB8;
+  --color-primary-blue-800: #0050D0;
+  --color-primary-blue-700: #0064E6;
+  --color-primary-blue-100: #E8F1FE;
+  --color-primary-blue-50: #F4F8FF;
+
+  /* --- Color: Neutral --- */
+  --color-neutral-900: #1A1A1C;
+  --color-neutral-700: #474749;
+  --color-neutral-600: #626264;
+  --color-neutral-500: #767678;
+  --color-neutral-300: #B4B4B6;
+  --color-neutral-200: #D9D9DB;
+  --color-neutral-100: #F0F0F2;
+  --color-neutral-50: #F8F8FA;
+  --color-neutral-white: #FFFFFF;
+
+  /* --- Color: Semantic --- */
+  --color-success-green-900: #197A2E;
+  --color-success-green-100: #E5F5E8;
+  --color-warning-yellow-900: #926800;
+  --color-warning-yellow-100: #FFF6DB;
+  --color-error-red-900: #C52F24;
+  --color-error-red-100: #FCEAE8;
+  --color-info-blue-900: #0064E6;
+  --color-info-blue-100: #E8F1FE;
+
+  /* --- Color: Utility --- */
+  --color-focus-yellow: #FFDB1A;
+  --color-link-blue: #0064E6;
+  --color-link-visited: #7B59C0;
+
+  /* --- Typography --- */
+  --font-family-base: 'Noto Sans JP', sans-serif;
+
+  --font-size-display-lg: 3rem;
+  --font-size-display-md: 2.25rem;
+  --font-size-display-sm: 1.875rem;
+  --font-size-heading-xl: 1.5rem;
+  --font-size-heading-lg: 1.25rem;
+  --font-size-heading-md: 1.125rem;
+  --font-size-heading-sm: 1rem;
+  --font-size-body-lg: 1.125rem;
+  --font-size-body-md: 1rem;
+  --font-size-body-sm: 0.875rem;
+  --font-size-label-lg: 1rem;
+  --font-size-label-md: 0.875rem;
+  --font-size-label-sm: 0.75rem;
+
+  --line-height-display: 1.4;
+  --line-height-heading: 1.5;
+  --line-height-body: 1.7;
+  --line-height-label: 1.5;
+
+  --font-weight-bold: 700;
+  --font-weight-medium: 500;
+  --font-weight-regular: 400;
+
+  /* --- Spacing --- */
+  --spacing-1: 0.25rem;
+  --spacing-2: 0.5rem;
+  --spacing-3: 0.75rem;
+  --spacing-4: 1rem;
+  --spacing-5: 1.25rem;
+  --spacing-6: 1.5rem;
+  --spacing-8: 2rem;
+  --spacing-10: 2.5rem;
+  --spacing-12: 3rem;
+  --spacing-16: 4rem;
+  --spacing-20: 5rem;
+
+  /* --- Tap target (§6.1: 44px 以上) --- */
+  --tap-target-min: 44px;
+}

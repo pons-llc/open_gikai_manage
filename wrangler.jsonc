@@ -1,0 +1,18 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "open-gikai",
+  "main": "src/index.tsx",
+  "compatibility_date": "2026-07-01",
+  "assets": { "directory": "./public", "binding": "ASSETS" },
+  "d1_databases": [
+    { "binding": "DB", "database_name": "open-gikai", "database_id": "<作成後に設定>" }
+  ],
+  "r2_buckets": [
+    { "binding": "BUCKET", "bucket_name": "open-gikai-documents" }
+  ],
+  "vars": {
+    "APP_URL": "http://localhost:8787",
+    "STORAGE_QUOTA_BYTES": "1099511627776"
+  }
+  // SESSION_SECRET は `wrangler secret put SESSION_SECRET` で登録（セッショントークンのHMAC化用。開発時は .dev.vars に記載）
+}

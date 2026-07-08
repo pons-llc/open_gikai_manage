@@ -1,0 +1,259 @@
+@import url("./tokens.css");
+
+/* ==========================================================================
+   LP (index.html) 専用スタイル
+   style.css (実アプリの公開画面と共通) には手を入れず、LP と
+   デモバナー用のスタイルはこちらに分離する。
+   ========================================================================== */
+
+.lp-header {
+  background: var(--color-neutral-white);
+  border-bottom: 1px solid var(--color-neutral-200);
+  padding: var(--spacing-4) var(--spacing-6);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-4);
+  flex-wrap: wrap;
+}
+
+.lp-header__brand {
+  display: flex;
+  align-items: baseline;
+  gap: var(--spacing-2);
+}
+
+.lp-header__brand strong {
+  font-size: var(--font-size-heading-lg);
+}
+
+.lp-header__brand span {
+  color: var(--color-neutral-600);
+  font-size: var(--font-size-body-sm);
+}
+
+.lp-header__links {
+  display: flex;
+  gap: var(--spacing-4);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.lp-header__links a {
+  font-weight: var(--font-weight-medium);
+  text-decoration: none;
+}
+
+.lp-main {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 0 var(--spacing-6);
+}
+
+.lp-hero {
+  padding: var(--spacing-16) 0 var(--spacing-12);
+  text-align: center;
+}
+
+.lp-hero__badges {
+  display: flex;
+  justify-content: center;
+  gap: var(--spacing-2);
+  flex-wrap: wrap;
+  margin-bottom: var(--spacing-6);
+}
+
+.lp-badge {
+  display: inline-block;
+  padding: 2px var(--spacing-3);
+  border-radius: 999px;
+  font-size: var(--font-size-label-sm);
+  font-weight: var(--font-weight-medium);
+  background: var(--color-primary-blue-50);
+  color: var(--color-primary-blue-900);
+  border: 1px solid var(--color-primary-blue-100);
+}
+
+.lp-hero h1 {
+  font-size: var(--font-size-display-md);
+  line-height: var(--line-height-display);
+  margin: 0 0 var(--spacing-4);
+}
+
+.lp-hero p.lp-lead {
+  font-size: var(--font-size-body-lg);
+  color: var(--color-neutral-700);
+  max-width: 640px;
+  margin: 0 auto var(--spacing-8);
+}
+
+.lp-hero__ctas {
+  display: flex;
+  justify-content: center;
+  gap: var(--spacing-4);
+  flex-wrap: wrap;
+}
+
+.lp-section {
+  padding: var(--spacing-12) 0;
+  border-top: 1px solid var(--color-neutral-200);
+}
+
+.lp-section h2 {
+  font-size: var(--font-size-heading-xl);
+  margin: 0 0 var(--spacing-2);
+}
+
+.lp-section__lead {
+  color: var(--color-neutral-700);
+  margin: 0 0 var(--spacing-8);
+  max-width: 640px;
+}
+
+.lp-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--spacing-6);
+}
+
+.lp-card {
+  background: var(--color-neutral-white);
+  border: 1px solid var(--color-neutral-200);
+  border-radius: 8px;
+  padding: var(--spacing-6);
+}
+
+.lp-card h3 {
+  font-size: var(--font-size-heading-md);
+  margin: 0 0 var(--spacing-2);
+}
+
+.lp-card p {
+  color: var(--color-neutral-700);
+  font-size: var(--font-size-body-sm);
+  margin: 0;
+}
+
+.lp-screens {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--spacing-4);
+}
+
+.lp-screen-card {
+  display: block;
+  border: 1px solid var(--color-neutral-200);
+  border-radius: 8px;
+  overflow: hidden;
+  text-decoration: none;
+  color: inherit;
+  background: var(--color-neutral-white);
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.lp-screen-card:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
+}
+
+.lp-screen-card__preview {
+  height: 96px;
+  background: linear-gradient(135deg, var(--color-primary-blue-50), var(--color-neutral-100));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+}
+
+.lp-screen-card__body {
+  padding: var(--spacing-4);
+}
+
+.lp-screen-card__body strong {
+  display: block;
+  margin-bottom: var(--spacing-1);
+}
+
+.lp-screen-card__body span {
+  font-size: var(--font-size-body-sm);
+  color: var(--color-neutral-700);
+}
+
+.lp-stack-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.lp-stack-table th,
+.lp-stack-table td {
+  border-bottom: 1px solid var(--color-neutral-200);
+  padding: var(--spacing-3);
+  text-align: left;
+  font-size: var(--font-size-body-sm);
+}
+
+.lp-stack-table th {
+  background: var(--color-neutral-100);
+  font-weight: var(--font-weight-bold);
+}
+
+.lp-cta {
+  background: var(--color-primary-blue-900);
+  color: var(--color-neutral-white);
+  border-radius: 8px;
+  padding: var(--spacing-12);
+  text-align: center;
+}
+
+.lp-cta h2 {
+  color: var(--color-neutral-white);
+}
+
+.lp-cta p {
+  color: var(--color-primary-blue-50);
+  margin-bottom: var(--spacing-6);
+}
+
+.lp-footer {
+  border-top: 1px solid var(--color-neutral-200);
+  padding: var(--spacing-8) 0;
+  text-align: center;
+  color: var(--color-neutral-700);
+  font-size: var(--font-size-body-sm);
+}
+
+.button--ghost {
+  background: var(--color-neutral-white);
+  color: var(--color-primary-blue-900);
+  border: 1px solid var(--color-primary-blue-900);
+}
+
+.button--on-dark {
+  background: var(--color-neutral-white);
+  color: var(--color-primary-blue-900);
+}
+
+/* ==========================================================================
+   デモバナー(app/*.html 共通)
+   実アプリの公開画面 CSS(style.css)をそのまま流用しつつ、
+   ダミーデータであることを常時明示するためのバナー。
+   ========================================================================== */
+
+.demo-banner {
+  background: var(--color-warning-yellow-100);
+  color: var(--color-warning-yellow-900);
+  padding: var(--spacing-2) var(--spacing-6);
+  font-size: var(--font-size-body-sm);
+  text-align: center;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: var(--spacing-3);
+  flex-wrap: wrap;
+}
+
+.demo-banner a {
+  color: var(--color-warning-yellow-900);
+  font-weight: var(--font-weight-bold);
+}

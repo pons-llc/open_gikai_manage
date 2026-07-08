@@ -1,0 +1,11 @@
+design-system-mcp
+.env
+.dev.vars
+node_modules
+.wrangler
+dist
+*.log
+.DS_Store
+.vscode/
+.idea/
+.claude/.cc-writes/

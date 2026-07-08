@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>open_gikai — 地方議会向けオープンソース文書管理システム</title>
+<link rel="stylesheet" href="assets/tokens.css" />
+<link rel="stylesheet" href="assets/demo.css" />
+</head>
+<body>
+<header class="lp-header">
+  <div class="lp-header__brand">
+    <strong>open_gikai</strong>
+    <span>議会文書管理システム</span>
+  </div>
+  <ul class="lp-header__links">
+    <li><a href="#features">特徴</a></li>
+    <li><a href="#stack">技術スタック</a></li>
+    <li><a href="#screens">デモ画面</a></li>
+    <li><a href="../README.md">README</a></li>
+  </ul>
+</header>
+
+<main class="lp-main">
+  <section class="lp-hero">
+    <div class="lp-hero__badges">
+      <span class="lp-badge">Apache-2.0</span>
+      <span class="lp-badge">Cloudflare Workers</span>
+      <span class="lp-badge">Hono</span>
+      <span class="lp-badge">D1 + R2</span>
+      <span class="lp-badge">DADS v2.12.0</span>
+    </div>
+    <h1>市民に開かれた議会情報を、<br />低コストに運用できる形で。</h1>
+    <p class="lp-lead">
+      open_gikai は、地方議会の会議日程・議題・委員会・議員・お知らせ・会議資料を
+      誰でも認証不要で閲覧できるようにする、地方自治体向けのオープンソースシステムです。
+      Cloudflare Workers + D1 + R2 のみで構成し、従量課金の予算スパイクを設計段階から防ぎます。
+    </p>
+    <div class="lp-hero__ctas">
+      <a class="button button--primary" href="app/top.html">デモを見る(ダミーデータ)</a>
+      <a class="button button--ghost" href="../README.md">セットアップ手順(README)</a>
+    </div>
+  </section>
+
+  <section class="lp-section" id="features">
+    <h2>特徴</h2>
+    <p class="lp-section__lead">
+      「閲覧系は完全公開・更新系のみ認証」というシンプルな2層モデルと、
+      Cloudflare の従量課金を前提にした予算スパイク対策を核にしています。
+    </p>
+    <div class="lp-grid">
+      <div class="lp-card">
+        <h3>認証不要の公開画面</h3>
+        <p>日程・議題・委員会・議員・お知らせ・資料DLは、市民なら誰でもログインなしで閲覧できます。JS無効でも閲覧系は動作します。</p>
+      </div>
+      <div class="lp-card">
+        <h3>「前の会議終了後」チェーン日程</h3>
+        <p>開始時刻が未定の会議も、「前の会議終了後」という形で自然に表現・表示できます。</p>
+      </div>
+      <div class="lp-card">
+        <h3>2段階の賛否記録</h3>
+        <p>委員会採決→本会議採決という2段階の賛否を、議員ごと・会議ごとにグリッド入力し公開できます。</p>
+      </div>
+      <div class="lp-card">
+        <h3>予約公開(cronなし)</h3>
+        <p>お知らせ・議題の公開予約は読み取り時のフィルタ(<code>published_at &lt;= now</code>)で実現し、cronジョブのコストをかけません。</p>
+      </div>
+      <div class="lp-card">
+        <h3>予算スパイク対策を内蔵</h3>
+        <p>公開GETはゾーンレベルで30分(資料は1日)キャッシュ、R2は総容量クォータでコスト上限を設計段階から確保しています。</p>
+      </div>
+      <div class="lp-card">
+        <h3>デジタル庁デザインシステム準拠</h3>
+        <p>DADS v2.12.0 のトークンを採用し、アクセシブルで自治体らしい見た目を最初から実現します。</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="lp-section" id="stack">
+    <h2>技術スタック</h2>
+    <p class="lp-section__lead">追加のホスティング費用や外部認証SaaSに依存せず、Cloudflareの枠内で完結します。</p>
+    <table class="lp-stack-table">
+      <thead>
+        <tr><th>レイヤ</th><th>技術</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>実行基盤</td><td>Cloudflare Workers</td></tr>
+        <tr><td>ルーティング / SSR</td><td>Hono + hono/jsx</td></tr>
+        <tr><td>データベース</td><td>Cloudflare D1 (SQLite)</td></tr>
+        <tr><td>オブジェクトストレージ</td><td>Cloudflare R2(会議資料)</td></tr>
+        <tr><td>静的アセット</td><td>Workers Static Assets</td></tr>
+        <tr><td>認証</td><td>自前実装(D1 + Web Crypto。better-auth 等の外部ライブラリ不使用)</td></tr>
+        <tr><td>フロントエンド</td><td>vanilla JS(プログレッシブエンハンスメント)</td></tr>
+        <tr><td>デザイン</td><td>デジタル庁デザインシステム(DADS) v2.12.0</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="lp-section" id="screens">
+    <h2>デモ画面(ダミーデータ)</h2>
+    <p class="lp-section__lead">
+      いずれも本番同様の見た目・DADSトークンを使った静的サンプルです。実データではなく、動作もしません。
+    </p>
+    <div class="lp-screens">
+      <a class="lp-screen-card" href="app/top.html">
+        <div class="lp-screen-card__preview">🏠</div>
+        <div class="lp-screen-card__body"><strong>トップ</strong><span>お知らせ・直近の日程</span></div>
+      </a>
+      <a class="lp-screen-card" href="app/meetings.html">
+        <div class="lp-screen-card__preview">📅</div>
+        <div class="lp-screen-card__body"><strong>日程(カレンダー)</strong><span>本会議・委員会の月表示</span></div>
+      </a>
+      <a class="lp-screen-card" href="app/meeting-detail.html">
+        <div class="lp-screen-card__preview">📋</div>
+        <div class="lp-screen-card__body"><strong>会議詳細</strong><span>議題・資料の一覧</span></div>
+      </a>
+      <a class="lp-screen-card" href="app/agenda-items.html">
+        <div class="lp-screen-card__preview">📄</div>
+        <div class="lp-screen-card__body"><strong>議題一覧</strong><span>年度・種類・キーワード検索</span></div>
+      </a>
+      <a class="lp-screen-card" href="app/agenda-item-detail.html">
+        <div class="lp-screen-card__preview">🗳️</div>
+        <div class="lp-screen-card__body"><strong>議題詳細・賛否</strong><span>委員会/本会議 2段階の賛否結果</span></div>
+      </a>
+      <a class="lp-screen-card" href="app/committees.html">
+        <div class="lp-screen-card__preview">🏛️</div>
+        <div class="lp-screen-card__body"><strong>委員会一覧</strong><span>委員会ごとの所属議員</span></div>
+      </a>
+      <a class="lp-screen-card" href="app/members.html">
+        <div class="lp-screen-card__preview">🧑‍⚖️</div>
+        <div class="lp-screen-card__body"><strong>議員一覧</strong><span>会派・当選期での絞り込み</span></div>
+      </a>
+      <a class="lp-screen-card" href="app/news.html">
+        <div class="lp-screen-card__preview">📢</div>
+        <div class="lp-screen-card__body"><strong>お知らせ</strong><span>予約公開に対応</span></div>
+      </a>
+    </div>
+  </section>
+
+  <section class="lp-section">
+    <div class="lp-cta">
+      <h2>自分の自治体で動かしてみる</h2>
+      <p>Cloudflareアカウントがあれば、Workers + D1 + R2 のみで数十分でセットアップできます。</p>
+      <a class="button button--on-dark" href="../README.md">READMEのセットアップ手順を見る</a>
+    </div>
+  </section>
+</main>
+
+<footer class="lp-footer">
+  <p>open_gikai は Apache License 2.0 で公開されているオープンソースプロジェクトです。</p>
+  <p>このページ自体もデモ用の静的サイトであり、実際のアプリは Cloudflare Workers 上で動作します。</p>
+</footer>
+</body>
+</html>
