@@ -21,7 +21,19 @@ import type { SelectOption } from "../../views/admin/committeeMemberships";
 
 export const meetingsRoute = new Hono<AppEnv>();
 
-/** P1-4: 年月・定例会での絞り込み(GET フォーム、JS 不要)。並べ替えは MEETING_SORTS のホワイトリストのみ。 */
+/** "YYYY-MM" の月初〜翌月初(排他)の日付範囲を返す。年またぎ(12月→翌年1月)を考慮する。 */
+const monthRange = (month: string): [string, string] => {
+  const [y, m] = month.split("-").map(Number);
+  const nextYear = m === 12 ? y + 1 : y;
+  const nextMonth = m === 12 ? 1 : m + 1;
+  return [`${month}-01`, `${nextYear}-${String(nextMonth).padStart(2, "0")}-01`];
+};
+
+/**
+ * P1-4: 年月・定例会での絞り込み(GET フォーム、JS 不要)。並べ替えは MEETING_SORTS のホワイトリストのみ。
+ * 1.14: 月絞り込みは `substr(date,1,7) = ?` だと idx_meetings_date が使えない(non-sargable)ため、
+ * 月初〜翌月初の範囲条件に変換してインデックスを使えるようにする。
+ */
 const buildMeetingConditions = (
   month: string,
   regularSessionId: string
@@ -29,8 +41,9 @@ const buildMeetingConditions = (
   const conditions: string[] = [];
   const binds: (string | number)[] = [];
   if (month !== "") {
-    conditions.push("substr(m.date, 1, 7) = ?");
-    binds.push(month);
+    const [start, end] = monthRange(month);
+    conditions.push("m.date >= ? AND m.date < ?");
+    binds.push(start, end);
   }
   if (regularSessionId !== "") {
     conditions.push("m.regular_session_id = ?");
